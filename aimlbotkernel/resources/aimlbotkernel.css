@@ -1,0 +1,39 @@
+/* ------------------------------------------------------------------------- */
+/* Styles for the AIML Chatbot kernel */
+
+
+/* Messages from magics */
+div.krn-bot div.ctrl { 
+    color: maroon;
+    font-style: italic;
+    font-family: Georgia, Times New Roman, Times, serif;
+    font-size: 100%;
+    margin-top: 3px;
+}
+
+div.krn-bot div.help { 
+    color: grey;
+    font-family: DejaVu Sans Mono, Courier New, Courier, Monospace;
+    margin-top: 3px;
+}
+
+div.krn-bot div.info { 
+    color: blue;
+    font-family: DejaVu Sans Mono, Courier New, Courier, Monospace;
+    margin-top: 3px;
+}
+
+
+
+
+/* Error output */
+div.krn-bot div.error {
+    text-align: left;
+    padding: 2px;
+    margin: 2px; border: 1px solid red;
+    font-family: DejaVu Sans Mono, Courier New, Courier, Monospace;
+}
+div.krn-bot div.error span.title { 
+    color: red; font-weight: bold;
+}
+/* ------------------------------------------------------------------------- */
