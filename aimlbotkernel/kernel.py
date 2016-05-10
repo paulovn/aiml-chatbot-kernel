@@ -69,6 +69,30 @@ Use "%lsmagic" to see all the available magics.
 
 # -----------------------------------------------------------------------
 
+
+def split_magics( buffer ):
+    """
+    Split the cell by lines and decide if it contains magic or bot input
+    """
+    # Split by lines & remove comments
+    buffer_lines = [ l for l in buffer.split('\n') if not l or l[0] !='#' ]
+
+    # Remove leading empty lines
+    for i, line in enumerate(buffer_lines):
+        if line:
+            break
+    if i:
+        buffer_lines = buffer_lines[i:]
+
+    # Return
+    if not buffer_lines:
+        return None, None
+    elif buffer_lines[0][0] == '%':
+        return buffer_lines, True
+    else:
+        return u'\n'.join(buffer_lines), False
+         
+
 def is_magic( token, token_start, buf ):
     """
     Detect if the passed token corresponds to a magic command: starts
@@ -203,34 +227,37 @@ class ChatbotKernel(Kernel):
             os.chdir( prev )
 
 
-    def learn_cell( self, code ):
+    def learn_cell( self, lines ):
         """
         Learn rules from a notebook cell
         """
-        # Get all non-comment, non-magic lines
-        lines = [ l.strip() for l in code.split('\n') 
-                  if not l or l[0] not in ('#','%') ]
-        # Skip any initial empty lines
+        # Remove leading empty lines
         for i, l in enumerate(lines):
-            if l: break
-        lines = lines[i:]
-        # Learn the passed AIML rules
+            if l:
+                break
+        if i:
+            lines = lines[i:]
         fmt = 'aiml' if lines[0].startswith('<') else 'text'
         self.bot.learn_buffer( lines, fmt )
 
 
-    def magic( self, code ):
+    def magic( self, lines ):
         """
         Process magic cells
+          @param lines (list): list of lines containing magics
+
+        For most of the magics only one magic line is recognized. The
+        exceptions are %aiml (which uses the whole cell) and %setp (which
+        can appear multiple times in a cell).
         """
-        kw = code.split(None)
+        kw = lines[0].split()
         magic = kw[0][1:].lower()
 
         if magic.startswith( 'lsmagic' ):
 
             return magic_help, 'help'
 
-        if magic == "savebrain":
+        elif magic == "savebrain":
             
             if len(kw) < 2:
                 raise KrnlException( 'missing filename for save operation' )
@@ -248,20 +275,20 @@ class ChatbotKernel(Kernel):
             if len(kw) < 2:
                 raise KrnlException( 'missing learn param' )
             self.learn_file( kw[1] ), 'ctrl'
-            msg = 'Loaded {} patterns', self.bot.numCategories() - before
+            msg = 'Loaded {} new patterns', self.bot.numCategories() - before
             return msg, 'ctrl'
 
         elif magic == "aiml":
 
             before = self.bot.numCategories()
-            self.learn_cell( code )
-            msg = 'Loaded {} patterns', self.bot.numCategories() - before
+            self.learn_cell( lines[1:] )
+            msg = 'Loaded {} new patterns', self.bot.numCategories() - before
             return msg, 'ctrl'
 
         elif magic == "setp":
 
             out = []
-            for line in ( l for l in code.split('\n') if l and l[0] != '#' ):
+            for line in lines:
                 # Fetch parameters
                 try:
                     cmd, name, value = line.split(None,2)
@@ -319,10 +346,14 @@ class ChatbotKernel(Kernel):
         if code in ('%?','%help') or (self.bot.numCategories() == 0 and 
                                       (len(code)==0 or code[0] != '%')):
             return self._send( general_help, 'help' )            
-        elif code.startswith("%"):
-            return self._send( *self.magic(code) )
-        else:
-            return self._send( self.bot.respond(code.encode('utf-8')).decode('utf-8'), 'bot' )
+
+        content, is_magic = split_magics( code )
+
+        if is_magic is True:
+            return self._send( *self.magic(content) )
+        elif is_magic is False:
+            response = self.bot.respond(content.encode('utf-8')).decode('utf-8')
+            return self._send( response, 'bot' )
 
 
     # -----------------------------------------------------------------
@@ -339,7 +370,7 @@ class ChatbotKernel(Kernel):
         except KrnlException as e:
             return self._send( e, silent=silent, status='error' )
         except Exception as e:
-            raise
+            #raise
             return self._send( KrnlException(e), silent=silent, status='error' )
             
 

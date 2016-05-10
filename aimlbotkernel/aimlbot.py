@@ -58,7 +58,7 @@ def srai_plain( g ):
     return '<srai>' + g.group(1).upper() + '</srai>'
 
 
-def build_aiml( lines, re_clean=None ):
+def build_aiml( lines, re_clean=None, debug=False ):
     """
     Build a proper AIML buffer out of rules written with a simplified syntax.
     Each rule is writen as simple text lines
@@ -78,7 +78,7 @@ def build_aiml( lines, re_clean=None ):
 
     Rules are separated by blank lines. Lines starting with \c # are comments.
     """
-    #print u"TEXT INPUT:  ", lines
+    if debug: print u"TEXT INPUT:  ", lines
     aiml = u'<?xml version="1.0" encoding="utf-8"?><aiml version="1.0">'
     fsrai = partial( srai_sub, re_clean ) if re_clean else srai_plain
     for rule in split_rules(lines):
@@ -98,7 +98,7 @@ def build_aiml( lines, re_clean=None ):
         tpl = re.sub( '<srai>(.+)</srai>', fsrai, tpl )
         aiml += u'<template>{}</template></category>'.format(tpl)
     aiml += u'</aiml>'
-    #print u"AIML OUTPUT: ", aiml.encode('utf-8')
+    if debug: print u"AIML OUTPUT: ", aiml.encode('utf-8')
     return aiml
 
 
