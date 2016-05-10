@@ -1,5 +1,16 @@
 /* ------------------------------------------------------------------------- */
-/* Styles for the AIML Chatbot kernel */
+/* CSS styles for the AIML Chatbot kernel */
+
+
+/* Responses from the bot */
+div.krn-bot div.bot { 
+    color: #8b5f32;
+    font-style: normal;
+    font-weight: bold;
+    font-family: Libre Baskerville, Georgia, Times New Roman, Times, serif;
+    font-size: 110%;
+    margin-top: 3px;
+}
 
 
 /* Messages from magics */
@@ -11,19 +22,22 @@ div.krn-bot div.ctrl {
     margin-top: 3px;
 }
 
+
+/* Help text */
 div.krn-bot div.help { 
     color: grey;
     font-family: DejaVu Sans Mono, Courier New, Courier, Monospace;
     margin-top: 3px;
 }
 
+
+/* Generic information messages */
 div.krn-bot div.info { 
     color: blue;
     font-family: DejaVu Sans Mono, Courier New, Courier, Monospace;
     margin-top: 3px;
+    white-space: pre;
 }
-
-
 
 
 /* Error output */

@@ -33,7 +33,7 @@ def copyresource( resource, filename, destdir ):
     Copy a resource file to a destination
     """
     data = pkgutil.get_data(resource, os.path.join('resources',filename) )
-    print "installing ", os.path.join(destdir,filename)
+    print "Installing ", os.path.join(destdir,filename)
     with open( os.path.join(destdir,filename), 'wb' ) as fp:
         fp.write(data)
 
@@ -60,7 +60,7 @@ def install_custom_css(destdir, cssfile, resource=PKGNAME ):
     with open(custom + '-new', 'w') as fout:
         fout.write('/* --- Added for {} --- */\n'.format(resource) )
         fout.write( include + '\n' )
-        fout.write('/* -------------------- */\n'.format(resource) )
+        fout.write('/* ----------------------------- */\n'.format(resource) )
         with open( custom ) as fin:
             for line in fin:
                 fout.write( line )
@@ -130,11 +130,11 @@ with open('README.md') as f:
 
 setup(name=PKGNAME,
       version=pkg.__version__,
-      description='A Chatbot kernel for Jupyter that can use Python libraries',
+      description='A Chatbot kernel for Jupyter based on pyAIML',
       long_description=readme,
-      url="https://github.com/Calysto/calysto_chatbot",
-      author='Douglas Blank',
-      author_email='doug.blank@gmail.com',
+      url="https://github.com/paulovn/aiml-chatbot-kernel",
+      author='Paulo Villegas',
+      author_email='paulo.vllgs@gmail.com',
       packages=[ PKGNAME ],
       install_requires=[ "aiml" ],
       cmdclass={'install': install_with_kernelspec},

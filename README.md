@@ -5,6 +5,10 @@ This is a Jupyter kernel that deploys a chatbot, implemented using the
 
 It has been tested with Python 2.7 and Jupyter 4.1
 
+A number of magics are provided to help with loading AIML databases and 
+inspecting/modifying the bot state. Use the `%help` magic for initial 
+instructions.
+
 
 ## AIML ##
 
