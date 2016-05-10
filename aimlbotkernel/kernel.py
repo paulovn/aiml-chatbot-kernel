@@ -10,6 +10,7 @@ import aiml
 import logging
 
 from ipykernel.kernelbase import Kernel
+from traitlets import List
 
 from . import __version__
 from .aimlbot import AimlBot, build_aiml
@@ -33,8 +34,8 @@ magics = {
                  'learn an AIML db' ],
     '%forget' : [ '', 'reset the bot' ],
     '%aiml' : [ '', 'add additional AIML rules' ],
-    '%show size' : [ '', 'show the current number of loaded categories' ], 
-    '%show session' : [ '', 'show the session fields' ],
+    '%show size' : [ '', 'show the number of categories loaded in the bot' ], 
+    '%show session' : [ '', 'show the predicates defined in the session' ],
     '%setp' : [ '[bot] <name> <value>','set a predicate, or a bot predicate'],
 }
 
@@ -107,6 +108,21 @@ class ChatbotKernel(Kernel):
     banner = "AIML Chatbot - a chatbot for Jupyter"
     language_info = { 'name': 'Chatbot', 'mimetype': 'text/xml'}
 
+    help_links = List([
+        {
+            'text': "ALICE AI Foundation",
+            'url': "http://www.alicebot.org"
+        },
+        {
+            'text' : 'AIML 1.0.1',
+            'url' : 'http://www.alicebot.org/TR/2001/WD-aiml/'
+        },
+        {
+            'text' : 'AIML Tutorial',
+            'url' : 'https://www.pandorabots.com/botmaster/en/tutorial?ch=0'
+        },
+    ])
+
 
     def __init__(self, *args, **kwargs):
         # Start base kernel
@@ -129,7 +145,7 @@ class ChatbotKernel(Kernel):
         """
         # Data to send back
         if data is not None and not silent:
-            LOG.warn( ' sending: %s', data )
+            LOG.warn( 'output: %s', data )
             # Format the data
             data = data_msg( data, mtype=status )
             # Send the data to the frontend
@@ -244,16 +260,29 @@ class ChatbotKernel(Kernel):
 
         elif magic == "setp":
 
-            if len(kw) < 3:
-                raise KrnlException( 'missing set predicate param' )
-            if len(kw) == 3:
-                self.bot.setPredicate( kw[1], kw[2] )
-                return ('Setting predicate: {} = {}',kw[1],kw[2]), 'ctrl'
-            elif kw[1] == 'bot':
-                self.bot.setBotPredicate( kw[2], kw[3] )
-                return ('Setting bot predicate: {} = {}',kw[2],kw[3]), 'ctrl'
-            else:
-                raise KrnlException('Error: invalid setp parameters: {}', kw)
+            out = []
+            for line in ( l for l in code.split('\n') if l and l[0] != '#' ):
+                # Fetch parameters
+                try:
+                    cmd, name, value = line.split(None,2)
+                    if cmd != '%setp':
+                        raise KrnlException(u'invalid magic in setp cell: {}',cmd)
+                except ValueError:
+                    raise KrnlException(u'missing setp predicate: {}',line)
+
+                # Set the predicate
+                if name != 'bot':
+                    self.bot.setPredicate( name, value )
+                    out.append(u'Setting predicate: {} = {}'.format(name,value))
+                else:
+                    try:
+                        nam, val = value.split(None,1)
+                    except ValueError:
+                        raise KrnlException('missing setp bot predicate param')
+                    self.bot.setBotPredicate( nam, val )
+                    out.append(u'Setting bot predicate: {} = {}'.format(nam,val))
+
+            return u'\n'.join(out), 'ctrl'
 
         elif magic in ("forget","reset"):
 
@@ -286,7 +315,7 @@ class ChatbotKernel(Kernel):
         Execute the cell code, send the appropriate message to the frontend
         and return the result to be provided to the backend
         """
-        LOG.warn( 'CODE: %s', code )
+        LOG.warn( 'input: %s', code )
         if code in ('%?','%help') or (self.bot.numCategories() == 0 and 
                                       (len(code)==0 or code[0] != '%')):
             return self._send( general_help, 'help' )            
@@ -310,7 +339,7 @@ class ChatbotKernel(Kernel):
         except KrnlException as e:
             return self._send( e, silent=silent, status='error' )
         except Exception as e:
-            #raise
+            raise
             return self._send( KrnlException(e), silent=silent, status='error' )
             
 

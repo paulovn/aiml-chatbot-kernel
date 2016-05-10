@@ -73,7 +73,7 @@ def data_msglist( msglist ):
       @param msglist (iterable): an iterable containing tuples (message, css)
     """
     txt = html = u''
-    LOG.warn( "msglist: %r", msglist )
+    LOG.debug( "msglist: %r", msglist )
     for msg, css in msglist:
         if is_collection(msg):
             msg = msg[0].format(*msg[1:])
