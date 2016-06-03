@@ -4,6 +4,8 @@ contained in a buffer, as well as a simplified plain-text-like format to ease
 writing AIML rules.
 """
 
+from __future__ import absolute_import, division, print_function
+
 import sys
 import logging
 import re
@@ -78,7 +80,7 @@ def build_aiml( lines, re_clean=None, debug=False ):
 
     Rules are separated by blank lines. Lines starting with \c # are comments.
     """
-    if debug: print u"TEXT INPUT:  ", lines
+    if debug: print( u"TEXT INPUT:  ", lines )
     aiml = u'<?xml version="1.0" encoding="utf-8"?><aiml version="1.0">'
     fsrai = partial( srai_sub, re_clean ) if re_clean else srai_plain
     for rule in split_rules(lines):
@@ -98,7 +100,7 @@ def build_aiml( lines, re_clean=None, debug=False ):
         tpl = re.sub( '<srai>(.+)</srai>', fsrai, tpl )
         aiml += u'<template>{}</template></category>'.format(tpl)
     aiml += u'</aiml>'
-    if debug: print u"AIML OUTPUT: ", aiml.encode('utf-8')
+    if debug: print( u"AIML OUTPUT: ", aiml.encode('utf-8') )
     return aiml
 
 

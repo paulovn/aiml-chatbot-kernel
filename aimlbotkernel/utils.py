@@ -1,9 +1,11 @@
 """
 Miscellaneous utility functions
 """
+from __future__ import absolute_import, division, print_function
 
 import logging
 
+# A logger for this dile
 LOG = logging.getLogger( __name__ )
 
 # Default wrapping class for an output message
@@ -70,7 +72,11 @@ def data_msglist( msglist ):
     """
     Return a Jupyter display_data message, in both HTML & text formats, by 
     joining together all passed messages.
-      @param msglist (iterable): an iterable containing tuples (message, css)
+      @param msglist (iterable): an iterable containing a list of tuples
+        (message, css_style)
+
+    Each message is either a text string, or a list. In that case it is
+    assumed to be a format string + parameters.
     """
     txt = html = u''
     LOG.debug( "msglist: %r", msglist )

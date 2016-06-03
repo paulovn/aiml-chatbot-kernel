@@ -1,8 +1,8 @@
 """
-The main file for the Jupyter kernel
+The main file for the AIML Chatbot Jupyter kernel
 """
 
-from __future__ import print_function
+from __future__ import absolute_import, division, print_function
 
 import sys
 import os
@@ -16,7 +16,7 @@ from . import __version__
 from .aimlbot import AimlBot, build_aiml
 from .utils import KrnlException, data_msg
 
-
+# The logger we will use
 LOG = logging.getLogger( __name__ )
 
 # Load commands for the standard DBs
@@ -37,6 +37,8 @@ magics = {
     '%show size' : [ '', 'show the number of categories loaded in the bot' ], 
     '%show session' : [ '', 'show the predicates defined in the session' ],
     '%setp' : [ '[bot] <name> <value>','set a predicate, or a bot predicate'],
+    '%save' : [ '<name>','save bot state to a file'],
+    '%load' : [ '<name>','load bot state from a file'],
 }
 
 
@@ -122,7 +124,7 @@ def token_at_cursor( code, pos=0 ):
 
 # -----------------------------------------------------------------------
 
-class ChatbotKernel(Kernel):
+class AimlBotKernel(Kernel):
 
     implementation = 'Chatbot'
     implementation_version = __version__
@@ -150,7 +152,7 @@ class ChatbotKernel(Kernel):
 
     def __init__(self, *args, **kwargs):
         # Start base kernel
-        super(ChatbotKernel, self).__init__(*args, **kwargs)
+        super(AimlBotKernel, self).__init__(*args, **kwargs)
         # Redirect stdout
         try:
             sys.stdout.write = self._send_stdout
@@ -169,7 +171,7 @@ class ChatbotKernel(Kernel):
         """
         # Data to send back
         if data is not None and not silent:
-            LOG.warn( 'output: %s', data )
+            LOG.info( 'output: %s', data )
             # Format the data
             data = data_msg( data, mtype=status )
             # Send the data to the frontend
@@ -215,12 +217,12 @@ class ChatbotKernel(Kernel):
         self._send( ("Learning database: '{}'", name), status='ctrl' )
         prev = os.getcwd()
         try:
-            LOG.warn( 'find %s',dbdir)
+            LOG.info( ' find db in: %s',dbdir)
             os.chdir( dbdir )
-            LOG.warn( 'learn' )
+            LOG.info( ' learn startup.xml' )
             self.bot.learn( 'startup.xml' )
             if LOAD.get(name ):
-                LOG.warn( 'load '+ LOAD[name] )
+                LOG.info( ' load '+ LOAD[name] )
                 self._send( "Loading patterns", 'ctrl' )
                 self.bot.respond( 'load ' + LOAD[name] )
         finally:
@@ -253,21 +255,28 @@ class ChatbotKernel(Kernel):
         kw = lines[0].split()
         magic = kw[0][1:].lower()
 
-        if magic.startswith( 'lsmagic' ):
+        if magic in ('?','help'):
+
+            return general_help, 'help'
+
+        elif magic.startswith( 'lsmagic' ):
 
             return magic_help, 'help'
 
-        elif magic == "savebrain":
+        elif magic == "save":
             
             if len(kw) < 2:
                 raise KrnlException( 'missing filename for save operation' )
-            return self.bot.saveBrain(code), 'ctrl'
+            return self.bot.saveBrain(kw[1]), 'ctrl'
 
-        elif magic == "loadbrain":
+        elif magic == "load":
             
             if len(kw) < 2:
                 raise KrnlException( 'missing filename for load operation' )
-            return self.bot.loadBrain(code), 'ctrl'
+            try:
+                return self.bot.loadBrain(kw[1]), 'ctrl'
+            except IOError as e:
+                raise KrnlException( "can't load {}: {!s}", kw[1], e )
 
         elif magic == "learn":
 
@@ -332,8 +341,20 @@ class ChatbotKernel(Kernel):
             else:
                 raise KrnlException( 'unknown show magic: {}', kw[1] )
 
+        elif magic == "log":
+
+            if len(kw) < 2:
+                raise KrnlException( 'missing log param' )
+            try:
+                l = kw[1].upper()
+                parent_logger = logging.getLogger( __name__.rsplit('.',1)[0] )
+                parent_logger.setLevel( l )
+                return ("Logging set to {}", l), 'ctrl'
+            except ValueError:
+                raise KrnlException( 'unknown log level: {}', kw[1] )
+
         else:
-            raise KrnlException( 'unknown magic: {}', code )
+            raise KrnlException( 'unknown magic: {}', magic )
 
 
         
@@ -342,16 +363,14 @@ class ChatbotKernel(Kernel):
         Execute the cell code, send the appropriate message to the frontend
         and return the result to be provided to the backend
         """
-        LOG.warn( 'input: %s', code )
-        if code in ('%?','%help') or (self.bot.numCategories() == 0 and 
-                                      (len(code)==0 or code[0] != '%')):
-            return self._send( general_help, 'help' )            
-
+        LOG.info( ' input: %s', code )
         content, is_magic = split_magics( code )
 
         if is_magic is True:
             return self._send( *self.magic(content) )
         elif is_magic is False:
+            if self.bot.numCategories() == 0:
+                return self._send( general_help, 'help' )
             response = self.bot.respond(content.encode('utf-8')).decode('utf-8')
             return self._send( response, 'bot' )
 
