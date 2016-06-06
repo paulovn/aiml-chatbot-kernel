@@ -209,8 +209,8 @@ class AimlBotRemove( RemoveKernelSpec ):
         super(RemoveKernelSpec, self).parse_command_line(argv)
 
     def start(self):
-        # Call parent to remove the kernelspec directory
-        super(RemoveKernelSpec, self).start()
+        # Call parent (this time the real parent) to remove the kernelspec dir
+        super(AimlBotRemove, self).start()
 
         # Remove the installed custom CSS
         self.log.info('Removing CSS')
