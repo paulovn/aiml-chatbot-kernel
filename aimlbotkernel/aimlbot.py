@@ -10,7 +10,10 @@ import sys
 import logging
 import re
 import unicodedata
+import codecs
+import ConfigParser
 from functools import partial
+import os.path
 
 from xml.sax import parseString, SAXParseException
 from aiml import Kernel
@@ -108,8 +111,9 @@ def build_aiml( lines, re_clean=None, debug=False ):
 
 class AimlBot( Kernel, object ):
     """
-    A subclass of the standard AIML kernel, with the added functionality
-    of being able to slurp a string buffer containing AIML statements
+    A subclass of the standard AIML kernel, with some added functionality:
+      * able to slurp a string buffer containing AIML statements
+      * load/save full state to disk
     """
 
     def __init__( self, *args, **kwargs ):
@@ -170,3 +174,88 @@ class AimlBot( Kernel, object ):
         #self._brain.dump()
 
 
+    def predicates( self, bot=False ):
+        """
+        Return session predicates (False) or bot predicates (True), as an
+        iterator over (key, value) tuples
+        """
+        if bot:
+            return self._botPredicates.iteritems()
+        sdata = self.getSessionData()
+        return ( (k,sdata['_global'][k]) 
+                 for k in sorted(sdata['_global'].iterkeys())
+                 if not k[0].startswith('_') )
+
+
+    def save( self, filename, session=True, bot=True ):
+        """
+        Save the complete bot state (patterns, session predicates, bot
+        predicates) to disk
+        We will use a .ini config file + a serialized brain file
+        """
+        cfg = ConfigParser.SafeConfigParser()
+
+        encode = lambda s : s.encode('utf-8')
+
+        # Session predicates
+        cfg.add_section( 'session' )
+        if session:
+            if self._verboseMode: print('Saving session predicates... ',end='')
+            num = -1
+            for num, kv in enumerate(self.predicates()):
+                cfg.set('session',*map(encode,kv) )
+            if self._verboseMode: print(num+1,'predicates')
+
+        # Bot predicates
+        cfg.add_section( 'bot' )
+        if bot:
+            if self._verboseMode: print('Saving bot predicates... ',end='')
+            num = -1
+            for num, kv in enumerate(self.predicates(True)):
+                cfg.set('bot',*map(encode,kv) )
+            if self._verboseMode: print(num+1,'predicates')
+
+        # Brain patterns
+        cfg.add_section( 'brain' )
+        cfg.set( 'brain', 'filename', filename + '.brain' )
+        name = os.path.basename( filename )
+        self.saveBrain( name + '.brain' )
+        
+        # Save main file
+        if not filename.endswith('.ini'):
+            filename += '.ini'
+        if self._verboseMode: print( 'Writing main bot file:', filename )
+        with open( filename, 'w' ) as f:
+            cfg.write( f )
+
+
+    def load( self, filename ):
+        """
+        Load the complete bot state (patterns, session predicates, bot
+        predicates) from disk
+        """
+        dir = os.path.dirname( filename )
+        if not filename.endswith('.ini'):
+            filename += '.ini'
+        cfg = ConfigParser.SafeConfigParser()
+        if len(cfg.read(filename)) != 1:
+            raise KrnlException( "Can't load bot from file: {}", filename )
+
+        decode = lambda s : s.decode('utf-8')
+
+        if self._verboseMode: print( 'Loading session predicates... ',end='' )
+        num = -1
+        for num, kv in enumerate(cfg.items('session')):
+            self.setPredicate( *map(decode,kv) )
+        if self._verboseMode: print(num+1,'predicates')
+
+        if self._verboseMode: print( 'Loading bot predicates... ',end='' )
+        num = -1
+        for num, kv in enumerate(cfg.items('bot')):
+            self.setBotPredicate( *map(decode,kv) )
+        if self._verboseMode: print(num+1,'predicates')
+
+        filename = cfg.get('brain','filename')
+        if not os.path.exists( filename ):
+            filename = os.path.join( dir, filename )
+        self.loadBrain( filename )

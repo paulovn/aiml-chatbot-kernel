@@ -17,7 +17,7 @@ from jupyter_client.kernelspecapp  import InstallKernelSpec, RemoveKernelSpec
 from IPython.utils.path import ensure_dir_exists
 from IPython.utils.tempdir import TemporaryDirectory
 
-from . import __version__
+from . import __version__, KERNEL_NAME, DISPLAY_NAME
 
 MODULEDIR = os.path.dirname(__file__)
 PKGNAME = os.path.basename( MODULEDIR )
@@ -28,13 +28,8 @@ kernel_json = {
     "argv": [sys.executable, 
 	     "-m", PKGNAME, 
 	     "-f", "{connection_file}"],
-    "display_name": "AIML Chatbot",
-    "name": "aiml_chatbot",
-    "language": "chatbot",  
-    "codemirror_mode":  {
-        "version": 2,
-	"name": "xml"
-    }
+    "display_name": DISPLAY_NAME,
+    "name": KERNEL_NAME
 }
 
 
@@ -136,7 +131,7 @@ class AimlBotInstall( InstallKernelSpec ):
     """
 
     version = __version__
-    kernel_name = PKGNAME
+    kernel_name = KERNEL_NAME
     description = '''Install the AIML Chatbot Kernel
     Either as a system kernel or for a concrete user'''
 
