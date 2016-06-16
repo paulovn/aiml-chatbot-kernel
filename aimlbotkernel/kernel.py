@@ -36,9 +36,10 @@ magics = {
     '%aiml' : [ '', 'add additional AIML rules' ],
     '%show size' : [ '', 'show the number of categories loaded in the bot' ], 
     '%show session' : [ '', 'show the predicates defined in the session' ],
+    '%show bot' : [ '', 'show the defined bot predicates' ],
     '%setp' : [ '[bot] <name> <value>','set a predicate, or a bot predicate'],
-    '%save' : [ '<name>','save bot state to a file'],
-    '%load' : [ '<name>','load bot state from a file'],
+    '%save' : [ '<name> [nosession]','save bot state to disk'],
+    '%load' : [ '<name>','load bot state from disk'],
 }
 
 
@@ -126,13 +127,14 @@ def token_at_cursor( code, pos=0 ):
 
 class AimlBotKernel(Kernel):
 
+    # Kernel info
     implementation = 'Chatbot'
     implementation_version = __version__
-
+    banner = "AIML Chatbot - a chatbot for Jupyter"
     language = 'xml'
     language_version = '0.1'
-    banner = "AIML Chatbot - a chatbot for Jupyter"
-    language_info = { 'name': 'Chatbot', 'mimetype': 'text/xml'}
+    language_info = { 'name': 'Chatbot', 
+                      'mimetype': 'text/xml'}
 
     help_links = List([
         {
@@ -153,7 +155,7 @@ class AimlBotKernel(Kernel):
     def __init__(self, *args, **kwargs):
         # Start base kernel
         super(AimlBotKernel, self).__init__(*args, **kwargs)
-        # Redirect stdout
+        # Redirect stdout, so that we send AIML messages to the notebook
         try:
             sys.stdout.write = self._send_stdout
         except:
@@ -267,14 +269,15 @@ class AimlBotKernel(Kernel):
             
             if len(kw) < 2:
                 raise KrnlException( 'missing filename for save operation' )
-            return self.bot.saveBrain(kw[1]), 'ctrl'
+            save_session = len(kw) < 3 or not kw[2].startswith('noses')
+            return self.bot.save(kw[1],save_session), 'ctrl'
 
         elif magic == "load":
             
             if len(kw) < 2:
                 raise KrnlException( 'missing filename for load operation' )
             try:
-                return self.bot.loadBrain(kw[1]), 'ctrl'
+                return self.bot.load(kw[1]), 'ctrl'
             except IOError as e:
                 raise KrnlException( "can't load {}: {!s}", kw[1], e )
 
@@ -333,11 +336,13 @@ class AimlBotKernel(Kernel):
                 msg = "Number of loaded categories: {}",self.bot.numCategories()
                 return msg, 'info'
             elif kw[1].startswith('ses'):
-                sdata = self.bot.getSessionData()
-                fields = [ u'  {}: {}'.format(k,sdata['_global'][k]) 
-                           for k in sorted(sdata['_global'].iterkeys())
-                           if not k[0].startswith('_') ]
+                fields = ( u'  {} = {}'.format(k,v) 
+                           for k,v in self.bot.predicates() )
                 return "Session fields:\n" + "\n".join(fields), 'info'
+            elif kw[1].startswith('bot'):
+                fields = ( u'  {} = {}'.format(k,v) 
+                           for k,v in self.bot.predicates(bot=True) )
+                return "Bot predicates:\n" + "\n".join(fields), 'info'
             else:
                 raise KrnlException( 'unknown show magic: {}', kw[1] )
 

@@ -5,7 +5,7 @@ from __future__ import absolute_import, division, print_function
 
 import logging
 
-# A logger for this dile
+# A logger for this file
 LOG = logging.getLogger( __name__ )
 
 # Default wrapping class for an output message
@@ -116,7 +116,7 @@ class KrnlException( Exception ):
             msg = repr( msg )
         elif len(msg):
             msg = msg.format(*args)
-        LOG.warn( "KrnlException: %s", msg )
+        LOG.warn( "KrnlException: %s", msg, exc_info=1 )
         super(KrnlException,self).__init__(msg)
 
     def __call__(self):
