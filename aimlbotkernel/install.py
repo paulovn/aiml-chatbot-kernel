@@ -193,7 +193,7 @@ class AimlBotRemove( RemoveKernelSpec ):
     The kernel uninstallation class
     """
 
-    spec_names = [ PKGNAME ]
+    spec_names = [ KERNEL_NAME ]
     description = '''Remove the AIML Chatbot Kernel'''
 
     def parse_command_line(self, argv):

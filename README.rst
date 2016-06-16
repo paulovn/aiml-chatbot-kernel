@@ -27,6 +27,22 @@ The installation process requires two steps:
 
      jupyter aimlbotkernel install [--user]
 
+The `--user` option will install the kernel in the current user's personal
+config, while the generic command will install it as a global kernel (but
+needs write permissions in the system directories).
+
+Note that kernel installation also installs some custom CSS; its purpose is to
+improve the layout of the kernel results as they are presented in the notebook
+(but it also means that the rendered notebook will look slightly different in a
+Jupyter deployment in which the kernel has not been installed, or within an
+online viewer).
+
+To uninstall, perform the inverse operations (in reverse order), to uninstall
+the kernel from Jupyter and to remove the Python package:
+
+     jupyter aimlbotkernel remove
+     pip uninstall aimlbotkernel
+
 
 Operation
 ---------

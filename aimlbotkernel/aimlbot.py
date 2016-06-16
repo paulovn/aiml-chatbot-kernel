@@ -7,13 +7,12 @@ writing AIML rules.
 from __future__ import absolute_import, division, print_function
 
 import sys
+import os.path
 import logging
 import re
 import unicodedata
-import codecs
 import ConfigParser
 from functools import partial
-import os.path
 
 from xml.sax import parseString, SAXParseException
 from aiml import Kernel
@@ -216,14 +215,14 @@ class AimlBot( Kernel, object ):
             if self._verboseMode: print(num+1,'predicates')
 
         # Brain patterns
+        if filename.endswith('.ini'):
+            filename = filename[:-4]
         cfg.add_section( 'brain' )
-        cfg.set( 'brain', 'filename', filename + '.brain' )
-        name = os.path.basename( filename )
-        self.saveBrain( name + '.brain' )
+        self.saveBrain( filename + '.brain' )
+        cfg.set( 'brain', 'filename', os.path.basename(filename) + '.brain' )
         
         # Save main file
-        if not filename.endswith('.ini'):
-            filename += '.ini'
+        filename += '.ini'
         if self._verboseMode: print( 'Writing main bot file:', filename )
         with open( filename, 'w' ) as f:
             cfg.write( f )
@@ -234,7 +233,7 @@ class AimlBot( Kernel, object ):
         Load the complete bot state (patterns, session predicates, bot
         predicates) from disk
         """
-        dir = os.path.dirname( filename )
+        cfgdir = os.path.dirname( filename )
         if not filename.endswith('.ini'):
             filename += '.ini'
         cfg = ConfigParser.SafeConfigParser()
@@ -257,5 +256,5 @@ class AimlBot( Kernel, object ):
 
         filename = cfg.get('brain','filename')
         if not os.path.exists( filename ):
-            filename = os.path.join( dir, filename )
+            filename = os.path.join( cfgdir, filename )
         self.loadBrain( filename )
