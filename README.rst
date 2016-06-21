@@ -51,6 +51,7 @@ initially empty but can be loaded with a couple of predefined DBs (use the
 
 
 Notebook input is of two kinds:
+
  * Regular text cells are considered human input and are sent to the chatbot,
    which produces its corresponding output
  * Cells starting with ``%`` contain "magic" commands that affect the
