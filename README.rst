@@ -4,11 +4,8 @@ AIML Chatbot kernel
 This is a Jupyter kernel that deploys a chatbot, implemented using the 
 `pyAIML`_ library. The idea was taken from the `Calysto chatbot`_ kernel.
 
-It has been tested with Python 2.7 and Jupyter 4.1
-
-A number of magics are provided to help with loading AIML databases and 
-inspecting/modifying the bot state. Use the `%help` magic for initial 
-instructions.
+It has been tested with Python 2.7 and Jupyter 4.1. It will not work with
+Python 3.
 
 
 Installation
@@ -48,9 +45,19 @@ Operation
 ---------
 
 Once installed, an *AIML Chatbot* kernel will be available in the Notebook
-**New** menu. Starting one kernel will create a chatbot. The chatbot is
-initially empty but can be loaded with a couple of predefined DBs. Use the
-``%help`` magic for some instructions.
+**New** menu. Starting one such kernel will create a chatbot. The chatbot is
+initially empty but can be loaded with a couple of predefined DBs (use the 
+``%help`` magic for initial instructions).
+
+
+Notebook input is of two kinds:
+ * Regular text cells are considered human input and are sent to the chatbot,
+   which produces its corresponding output
+ * Cells starting with ``%`` contain "magic" commands that affect the
+   operation of the kernel (load AIML databases, inspecting/modifying bot
+   state, saving/loading state to/from disk, etc). Use the ``%help`` magic for 
+   some instructions, and ``%lsmagics`` to show the current list of defined 
+   magics (magics have autocompletion and contextual help).
 
 
 AIML
