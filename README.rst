@@ -24,7 +24,7 @@ The installation process requires two steps:
 
      jupyter aimlbotkernel install [--user]
 
-The `--user` option will install the kernel in the current user's personal
+The ``--user`` option will install the kernel in the current user's personal
 config, while the generic command will install it as a global kernel (but
 needs write permissions in the system directories).
 
@@ -35,7 +35,7 @@ Jupyter deployment in which the kernel has not been installed, or within an
 online viewer).
 
 To uninstall, perform the inverse operations (in reverse order), to uninstall
-the kernel from Jupyter and to remove the Python package:
+the kernel from Jupyter and to remove the Python package::
 
      jupyter aimlbotkernel remove
      pip uninstall aimlbotkernel
@@ -66,6 +66,10 @@ AIML
 `AIML`_ is an XML-based specification to design conversational agents. Its 
 most famous application is ALICE, a chatbot (the DB for the free version of 
 ALICE is included in this kernel, as it is part of pyAIML)
+
+The chatbot can load an AIML database (which is basically a bunch of XML
+files). It can also define AIML rules on the fly, by using the ``%aiml`` magic
+in a cell.
 
 
 .. _pyAIML: https://github.com/creatorrr/pyAIML
