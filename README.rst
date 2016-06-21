@@ -52,13 +52,13 @@ initially empty but can be loaded with a couple of predefined DBs (use the
 
 Notebook input is of two kinds:
 
- * Regular text cells are considered human input and are sent to the chatbot,
-   which produces its corresponding output
- * Cells starting with ``%`` contain "magic" commands that affect the
-   operation of the kernel (load AIML databases, inspecting/modifying bot
-   state, saving/loading state to/from disk, etc). Use the ``%help`` magic for 
-   some instructions, and ``%lsmagics`` to show the current list of defined 
-   magics (magics have autocompletion and contextual help).
+* Regular text cells are considered human input and are sent to the chatbot,
+  which produces its corresponding output
+* Cells starting with ``%`` contain "magic" commands that affect the
+  operation of the kernel (load AIML databases, inspecting/modifying bot
+  state, saving/loading state to/from disk, etc). Use the ``%help`` magic for 
+  some instructions, and ``%lsmagics`` to show the current list of defined 
+  magics (magics have autocompletion and contextual help).
 
 
 AIML
