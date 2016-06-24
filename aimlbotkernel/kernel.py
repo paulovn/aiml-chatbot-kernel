@@ -231,7 +231,7 @@ class AimlBotKernel(Kernel):
             os.chdir( prev )
 
 
-    def learn_cell( self, lines ):
+    def learn_cell( self, lines, topic=None ):
         """
         Learn rules from a notebook cell
         """
@@ -241,8 +241,11 @@ class AimlBotKernel(Kernel):
                 break
         if i:
             lines = lines[i:]
+        # Detect format (native AIML, o simplified text)
         fmt = 'aiml' if lines[0].startswith('<') else 'text'
-        self.bot.learn_buffer( lines, fmt )
+        # Learn rules from the buffer
+        opts = { 'topic' : topic, 'clean_pattern' : True }
+        self.bot.learn_buffer( lines, fmt, opts )
 
 
     def magic( self, lines ):
@@ -293,7 +296,7 @@ class AimlBotKernel(Kernel):
         elif magic == "aiml":
 
             before = self.bot.numCategories()
-            self.learn_cell( lines[1:] )
+            self.learn_cell( lines[1:], kw[1] if len(kw)>1 else None )
             msg = 'Loaded {} new patterns', self.bot.numCategories() - before
             return msg, 'ctrl'
 
@@ -311,9 +314,11 @@ class AimlBotKernel(Kernel):
 
                 # Set the predicate
                 if name != 'bot':
+                    # A session predicate
                     self.bot.setPredicate( name, value )
                     out.append(u'Setting predicate: {} = {}'.format(name,value))
                 else:
+                    # A bot predicate
                     try:
                         nam, val = value.split(None,1)
                     except ValueError:

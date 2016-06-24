@@ -1,7 +1,12 @@
 """
-A slight extension of pyAIML's Kernel class, to allow parsing of AIML tags
-contained in a buffer, as well as a simplified plain-text-like format to ease
-writing AIML rules.
+A small extension of pyAIML's Kernel class, to add some modifications:
+ * allow parsing of AIML documents contained in a buffer, 
+ * allow also parsing a somehow simplified plain-text-like format (to ease 
+   writing AIML rules)
+ * allow iterating over predicates (either session or bot predicates).
+ * load/save full bot states (not only brain, but also session & bot predicates)
+ * improve date rendering by adding strftime() formatting, locale-dependent
+ * set locale by defining the \c lang bot predicate
 """
 
 from __future__ import absolute_import, division, print_function
@@ -10,6 +15,8 @@ import sys
 import os.path
 import logging
 import re
+import locale
+import time
 import unicodedata
 import ConfigParser
 from functools import partial
@@ -54,15 +61,16 @@ def split_rules( lines ):
 
 
 def srai_sub( repl, g ):
-    """Version of <srai> cleaning with punctuation removal"""
+    """Version of <srai> cleaning with uppercasing & punctuation removal"""
     return '<srai>' + re.sub( repl, ' ', g.group(1) ).upper() + '</srai>'
 
 def srai_plain( g ):
-    """Version of <srai> cleaning without punctuation removal"""
+    """Version of <srai> cleaning with uppercasing but without punctuation 
+    removal"""
     return '<srai>' + g.group(1).upper() + '</srai>'
 
 
-def build_aiml( lines, re_clean=None, debug=False ):
+def build_aiml( lines, topic=None, re_clean=None, debug=False ):
     """
     Build a proper AIML buffer out of rules written with a simplified syntax.
     Each rule is writen as simple text lines
@@ -83,14 +91,14 @@ def build_aiml( lines, re_clean=None, debug=False ):
     Rules are separated by blank lines. Lines starting with \c # are comments.
     """
     if debug: print( u"TEXT INPUT:  ", lines )
-    aiml = u'<?xml version="1.0" encoding="utf-8"?><aiml version="1.0">'
+    aiml = u'' if topic is None else u'<topic name="{}">'.format(topic.upper())
     fsrai = partial( srai_sub, re_clean ) if re_clean else srai_plain
     for rule in split_rules(lines):
         if len(rule)<2:
             raise RuntimeException(u'invalid rule:\n' + u'\n'.join(rule) )
         # Clean the pattern 
         pattern = re.sub( re_clean, ' ', rule[0] ) if re_clean else rule[0]
-        aiml += u'<category><pattern>{}</pattern>'.format( pattern.upper() )
+        aiml += u'\n<category>\n<pattern>{}</pattern>'.format(pattern.upper())
         # See if the 2nd line is a pattern-side that
         if rule[1].startswith('<that>'):
             aiml += rule[1]
@@ -100,8 +108,9 @@ def build_aiml( lines, re_clean=None, debug=False ):
         # Compile the template, including cleaning up <srai> elements
         tpl = u'\n'.join( rule[1:] )
         tpl = re.sub( '<srai>(.+)</srai>', fsrai, tpl )
-        aiml += u'<template>{}</template></category>'.format(tpl)
-    aiml += u'</aiml>'
+        aiml += u'\n<template>{}</template>\n</category>\n'.format(tpl)
+    if topic is not None:
+        aiml += u'\n</topic>'
     if debug: print( u"AIML OUTPUT: ", aiml.encode('utf-8') )
     return aiml
 
@@ -127,23 +136,31 @@ class AimlBot( Kernel, object ):
         # Same as self._brain._puncStripRE, but taking out * and _
         punctuation = "\"`~!@#$%^&()-=+[{]}\|;:',<.>/?"
         self._patclean = re.compile("[" + re.escape(punctuation) + "]")
+        # A place to store the parsed AIML cells (TBD: save AIML to disk)
+        self.aiml = None
 
 
-    def learn_buffer( self, lines, fmt='aiml', clean_pattern=True ):
+    def learn_buffer( self, lines, fmt='aiml', opts={} ):
         """
         Learn the AIML stored in a buffer
          @param lines (list): a list of text lines
          @param fmt (str): buffer format: \c aiml or \c text
-         @param clean_pattern (bool): for text format, if pattern & <srai>
-           fields are to be sanitized
+         @param opts (dict): options for text format:
+             - topic (str): an optional \c <topic> wrapper
+             - clean_pattern (bool): clean pattern & <srai> fields
         """
-        # Prepare the buffer. If it's not native AIML, it will contain rules
-        # in simplified text; process them
+        # Prepare the buffer
         if fmt == 'aiml':
-            buffer = u'\n'.join(lines).encode( self._enc )
+            # Native XML. Join lines, remove the preamble & <aiml> element
+            buf = re.sub( r'''^ \s* (?:<\?xml[^>]+>)?
+                                \s*<aiml[^>]*>
+                                (.+)
+                                </aiml>\s*$''',
+                          r'\1', u'\n'.join(lines), flags=re.X|re.I|re.S )
         else:
-            p = self._patclean if clean_pattern else None
-            buffer = build_aiml( lines, p ).encode( self._enc )
+            # Simplified text: process it
+            clean = self._patclean if opts.get('clean_pattern') else None
+            buf = build_aiml( lines, opts.get('topic'), clean )
 
         # Create a handler
         handler = AimlHandler( self._enc )
@@ -151,26 +168,34 @@ class AimlBot( Kernel, object ):
 
         # Parse the XML buffer with that handler
         try: 
-            parseString(buffer,handler)
+            # Do charset encoding & add the <aiml> XML wrapping
+            xml = '<?xml version="1.0" encoding="utf-8"?>\n<aiml version="1.0">\n{}\n</aiml>'.format( buf.encode(self._enc) )
+            parseString(xml,handler)
         except SAXParseException as e:
             # Find where the parser broke
-            lines = buffer.split('\n')
-            row = e.getLineNumber()
-            col = e.getColumnNumber()
-            start = col-10 if col>10 else 0
-            buf = lines[row-1][start:start+20]
+            lines = xml.decode(self._enc).split('\n')
+            #print( '\n'.join(lines) )
+            row, col = e.getLineNumber(), e.getColumnNumber()
+            start = col-25 if col>25 else 0
+            errbuf = lines[row-1][start:start+50]
+            below = '-' * (col-start) + '^'
             if start > 0:
-                buf = '...' + buf
-            if start+20 < len(lines[row-1]):
-                buf += '...'
-            LOG.warn( '%s : %s', e,  buf )
-            msg = '{}: row={} col={}:\n{!s}', e.getMessage(), row, col, buf
+                errbuf = u'...' + errbuf
+                below = '---' + below
+            if start+50 < len(lines[row-1]):
+                errbuf += u'...'
+            errbuf = errbuf + '\n' + below
+            #LOG.warn( u'%s :\n%s', e,  errbuf )
+            msg = u'{}: row={} col={}:\n{!s}', e.getMessage(), row, col, errbuf
             raise KrnlException( *msg )
 
         # Store the pattern/template pairs in the PatternMgr
         for key,tem in handler.categories.items():
             self._brain.add(key,tem)
         #self._brain.dump()
+        # Add the processed AIML to the aiml buffer
+        if self.aiml is not None:
+            self.aiml.append( buf )
 
 
     def predicates( self, bot=False ):
@@ -189,8 +214,9 @@ class AimlBot( Kernel, object ):
     def save( self, filename, session=True, bot=True ):
         """
         Save the complete bot state (patterns, session predicates, bot
-        predicates) to disk
-        We will use a .ini config file + a serialized brain file
+        predicates) to disk.
+        We will use a .ini config file + a serialized brain file. The first
+        one references the second.
         """
         cfg = ConfigParser.SafeConfigParser()
 
@@ -231,8 +257,9 @@ class AimlBot( Kernel, object ):
     def load( self, filename ):
         """
         Load the complete bot state (patterns, session predicates, bot
-        predicates) from disk
+        predicates) from disk.
         """
+        # Read INI configuration file
         cfgdir = os.path.dirname( filename )
         if not filename.endswith('.ini'):
             filename += '.ini'
@@ -242,19 +269,51 @@ class AimlBot( Kernel, object ):
 
         decode = lambda s : s.decode('utf-8')
 
+        # Set session predicates
         if self._verboseMode: print( 'Loading session predicates... ',end='' )
         num = -1
         for num, kv in enumerate(cfg.items('session')):
             self.setPredicate( *map(decode,kv) )
         if self._verboseMode: print(num+1,'predicates')
 
+        # Set bot predicates
         if self._verboseMode: print( 'Loading bot predicates... ',end='' )
         num = -1
         for num, kv in enumerate(cfg.items('bot')):
             self.setBotPredicate( *map(decode,kv) )
         if self._verboseMode: print(num+1,'predicates')
 
+        # Load brain
         filename = cfg.get('brain','filename')
         if not os.path.exists( filename ):
             filename = os.path.join( cfgdir, filename )
         self.loadBrain( filename )
+
+
+    def setBotPredicate(self, name, value):
+        '''
+        Override parent's method to enable additional processing for
+        some special bot predicates.
+        '''
+        super(AimlBot,self).setBotPredicate( name, value )
+        if name == 'lang':
+            locale.setlocale( locale.LC_ALL, str(value) )
+
+
+    def _processDate(self, elem, sessionID):
+        """
+        Override parent's method to allow full formatting of dates,
+        based on AIML patterns such as
+
+          <date format='fmt'/>
+
+        where "fmt" is an strftime() format specification.
+        Note that date formatting is locale-dependent. Define the 'lang'
+        bot predicate to change locale.
+        """
+        if len(elem) == 1 or 'format' not in elem[1]:
+            return time.asctime()
+        else:
+            return time.strftime( elem[1]['format'] )
+
+
