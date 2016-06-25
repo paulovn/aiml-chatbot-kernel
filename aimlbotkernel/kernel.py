@@ -38,8 +38,9 @@ magics = {
     '%show session' : [ '', 'show the predicates defined in the session' ],
     '%show bot' : [ '', 'show the defined bot predicates' ],
     '%setp' : [ '[bot] <name> <value>','set a predicate, or a bot predicate'],
-    '%save' : [ '<name> [nosession]','save bot state to disk'],
-    '%load' : [ '<name>','load bot state from disk'],
+    '%save' : [ '<name> [no* ..]','save bot state to disk'],
+    '%load' : [ '<name> [no* ..]','load bot state from disk'],
+    '%subs' : [ '(<name> [reset] | default)','set substitution strings'],
 }
 
 
@@ -272,8 +273,7 @@ class AimlBotKernel(Kernel):
             
             if len(kw) < 2:
                 raise KrnlException( 'missing filename for save operation' )
-            save_session = len(kw) < 3 or not kw[2].startswith('noses')
-            return self.bot.save(kw[1],save_session), 'ctrl'
+            return self.bot.save(kw[1],kw[2:]), 'ctrl'
 
         elif magic == "load":
             
@@ -283,6 +283,19 @@ class AimlBotKernel(Kernel):
                 return self.bot.load(kw[1]), 'ctrl'
             except IOError as e:
                 raise KrnlException( "can't load {}: {!s}", kw[1], e )
+
+        elif magic == "subs":
+
+            if len(kw) < 2:
+                raise KrnlException( 'missing subs name' )
+            reset = len(kw) == 3 and kw[2] == 'reset'
+            subs = ( [f.strip() for f in sub.split('=')]
+                     for sub in lines[1:] if '=' in sub )
+            n = self.bot.addSub( kw[1], subs, reset )
+            if isinstance(n,basestring):
+                return n, 'ctrl'
+            msg = '"{}" subs: reset. {} subs loaded' if reset else '"{}" subs: {} subs loaded'
+            return (msg, kw[1], n), 'ctrl'
 
         elif magic == "learn":
 

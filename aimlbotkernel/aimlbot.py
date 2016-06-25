@@ -16,6 +16,7 @@ import os.path
 import logging
 import re
 import locale
+import datetime
 import time
 import unicodedata
 import ConfigParser
@@ -24,6 +25,7 @@ from functools import partial
 from xml.sax import parseString, SAXParseException
 from aiml import Kernel
 from aiml.AimlParser import AimlHandler
+from aiml.WordSub import WordSub
 
 from .utils import KrnlException
 
@@ -211,20 +213,62 @@ class AimlBot( Kernel, object ):
                  if not k[0].startswith('_') )
 
 
-    def save( self, filename, session=True, bot=True ):
+    def addSub( self, name, items, reset=False ):
+        ''' 
+        Add a new WordSub instance
+          @param name (str): Wordsub name
+          @param items (iterable of tuples): subs to add
+          @param reset (bool): delete all current subs in this WordSub
+          @return (int): number of subs added
+        '''
+        # Just define default (English) subbers
+        if name == 'default':
+            import aiml.DefaultSubs as DefaultSubs
+            self._subbers = {}
+            self._subbers['gender'] = WordSub(DefaultSubs.defaultGender)
+            self._subbers['person'] = WordSub(DefaultSubs.defaultPerson)
+            self._subbers['person2'] = WordSub(DefaultSubs.defaultPerson2)
+            self._subbers['normal'] = WordSub(DefaultSubs.defaultNormal)
+            return 'default subs defined'
+
+        # Reset current dictionary, if requested
+        if reset and name in self._subbers:
+            del self._subbers[name]
+        # and ensure it exists
+        if name not in self._subbers:
+            self._subbers[name] = WordSub()
+        # Add all subs
+        n = -1
+        for n, kv in enumerate(items):
+            #print("Sub", n+1, kv)
+            self._subbers[name][kv[0]] = kv[1]
+        return n+1
+
+
+    def save( self, filename, options=[] ):
         """
         Save the complete bot state (patterns, session predicates, bot
-        predicates) to disk.
+        predicates, subs) to disk. Any of those data elements can be skipped.
+
+          @param filename (str): name of file to save to (appropriate suffixes 
+            will be added)
+          @param options (list): options to select what gets saved
+
         We will use a .ini config file + a serialized brain file. The first
         one references the second.
         """
+        options = set( (v[:5] for v in options) )
         cfg = ConfigParser.SafeConfigParser()
-
+        cfg.add_section( 'general' )
+        cfg.set( 'general', 'date', 
+                 datetime.datetime.now().strftime('%Y-%m-%dT%H:%M:%S%z') )
         encode = lambda s : s.encode('utf-8')
 
         # Session predicates
         cfg.add_section( 'session' )
-        if session:
+        if 'noses' in options:
+            if self._verboseMode: print('Skipping session predicates')
+        else:
             if self._verboseMode: print('Saving session predicates... ',end='')
             num = -1
             for num, kv in enumerate(self.predicates()):
@@ -233,19 +277,44 @@ class AimlBot( Kernel, object ):
 
         # Bot predicates
         cfg.add_section( 'bot' )
-        if bot:
+        if 'nobot' in options:
+            if self._verboseMode: print('Skipping bot predicates')
+        else:
             if self._verboseMode: print('Saving bot predicates... ',end='')
             num = -1
             for num, kv in enumerate(self.predicates(True)):
                 cfg.set('bot',*map(encode,kv) )
             if self._verboseMode: print(num+1,'predicates')
 
+        # Subs
+        if 'nosub' in options:
+            if self._verboseMode: print('Skipping subs')
+        else:
+            subs = []
+            for name,s in self._subbers.iteritems():
+                # Create the section
+                sname = 'sub/' + name
+                cfg.add_section( sname )
+                if self._verboseMode: 
+                    print('Saving subbers for {} ... '.format(name),end='')
+                # Add all subs (uppercase versions will be collapsed)
+                for kv in s.iteritems():
+                    cfg.set(sname,*map(encode,kv) )
+                num = len(cfg.options(sname))
+                if self._verboseMode: print(num,'subs')
+                if num>= 0:
+                    subs.append( name )
+            cfg.set( 'general', 'subs', ','.join(subs) )
+
         # Brain patterns
-        if filename.endswith('.ini'):
-            filename = filename[:-4]
-        cfg.add_section( 'brain' )
-        self.saveBrain( filename + '.brain' )
-        cfg.set( 'brain', 'filename', os.path.basename(filename) + '.brain' )
+        if 'nobra' in options:
+            if self._verboseMode: print('Skipping brain patterns')
+        else:
+            if filename.endswith('.ini'):
+                filename = filename[:-4]
+            self.saveBrain( filename + '.brain' )
+            cfg.set( 'general', 'brain-filename', 
+                     os.path.basename(filename) + '.brain' )
         
         # Save main file
         filename += '.ini'
@@ -254,40 +323,68 @@ class AimlBot( Kernel, object ):
             cfg.write( f )
 
 
-    def load( self, filename ):
+
+    def load( self, filename, options=[] ):
         """
         Load the complete bot state (patterns, session predicates, bot
         predicates) from disk.
         """
+        options = set( (v[:5] for v in options) )
+
         # Read INI configuration file
         cfgdir = os.path.dirname( filename )
         if not filename.endswith('.ini'):
             filename += '.ini'
         cfg = ConfigParser.SafeConfigParser()
         if len(cfg.read(filename)) != 1:
-            raise KrnlException( "Can't load bot from file: {}", filename )
+            raise KrnlException( "Can't load state from file: {}", filename )
 
         decode = lambda s : s.decode('utf-8')
 
         # Set session predicates
-        if self._verboseMode: print( 'Loading session predicates... ',end='' )
-        num = -1
-        for num, kv in enumerate(cfg.items('session')):
-            self.setPredicate( *map(decode,kv) )
-        if self._verboseMode: print(num+1,'predicates')
+        if 'noses' in options:
+            if self._verboseMode: print('Skipping session predicates')
+        else:
+            if self._verboseMode: print('Loading session predicates... ',end='')
+            num = -1
+            for num, kv in enumerate(cfg.items('session')):
+                self.setPredicate( *map(decode,kv) )
+            if self._verboseMode: print(num+1,'predicates')
 
         # Set bot predicates
-        if self._verboseMode: print( 'Loading bot predicates... ',end='' )
-        num = -1
-        for num, kv in enumerate(cfg.items('bot')):
-            self.setBotPredicate( *map(decode,kv) )
-        if self._verboseMode: print(num+1,'predicates')
+        if 'nobot' in options:
+            if self._verboseMode: print('Skipping bot predicates')
+        else:
+            if self._verboseMode: print( 'Loading bot predicates... ',end='' )
+            num = -1
+            for num, kv in enumerate(cfg.items('bot')):
+                self.setBotPredicate( *map(decode,kv) )
+            if self._verboseMode: print(num+1,'predicates')
+
+        # Load subs
+        if 'nosub' in options:
+            if self._verboseMode: print('Skipping subs')
+        else:
+            try:
+                for sub in cfg.get('general','subs').split(','): 
+                    if self._verboseMode: 
+                        print('Loading subs for {} ... '.format(sub), end='' )
+                    n = self.addSub( sub, cfg.items('sub/'+sub), reset=True )
+                    if self._verboseMode: print(n,'subs')
+            except ConfigParser.NoOptionError:
+                if self._verboseMode: print('No subs defined')
 
         # Load brain
-        filename = cfg.get('brain','filename')
-        if not os.path.exists( filename ):
-            filename = os.path.join( cfgdir, filename )
-        self.loadBrain( filename )
+        if 'nobot' in options:
+            if self._verboseMode: print('Skipping brain patterns')
+        else:
+            try:
+                filename = cfg.get('general','filename')
+                if not os.path.exists( filename ):
+                    filename = os.path.join( cfgdir, filename )
+                self.loadBrain( filename )
+            except ConfigParser.NoOptionError:
+                if self._verboseMode: print('No brain file defined')
 
 
     def setBotPredicate(self, name, value):
