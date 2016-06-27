@@ -41,6 +41,7 @@ magics = {
     '%save' : [ '<name> [no* ..]','save bot state to disk'],
     '%load' : [ '<name> [no* ..]','load bot state from disk'],
     '%subs' : [ '(<name> [reset] | default)','set substitution strings'],
+    '%log' : [ '<loglevel>','set log level'],
 }
 
 
@@ -364,7 +365,7 @@ class AimlBotKernel(Kernel):
             else:
                 raise KrnlException( 'unknown show magic: {}', kw[1] )
 
-        elif magic == "log":
+        elif magic == 'log':
 
             if len(kw) < 2:
                 raise KrnlException( 'missing log param' )
@@ -375,6 +376,11 @@ class AimlBotKernel(Kernel):
                 return ("Logging set to {}", l), 'ctrl'
             except ValueError:
                 raise KrnlException( 'unknown log level: {}', kw[1] )
+
+        elif magic == 'trace':
+
+            res = self.bot.trace( u'\n'.join(lines[1:]) )
+            return res, '_MULTI_'
 
         else:
             raise KrnlException( 'unknown magic: {}', magic )
@@ -406,7 +412,6 @@ class AimlBotKernel(Kernel):
         """
         Jupyter kernel execute message
         """
-
         try:
             return self._inner_execute( code, silent )
         except KrnlException as e:

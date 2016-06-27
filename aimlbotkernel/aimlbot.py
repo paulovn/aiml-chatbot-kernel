@@ -1,12 +1,16 @@
 """
-A small extension of pyAIML's Kernel class, to add some modifications:
+An extension over pyAIML's Kernel class, to add some modifications:
  * allow parsing of AIML documents contained in a buffer, 
  * allow also parsing a somehow simplified plain-text-like format (to ease 
    writing AIML rules)
  * allow iterating over predicates (either session or bot predicates).
- * load/save full bot states (not only brain, but also session & bot predicates)
+ * load/save full bot states (not only brain, but also session, bot predicates
+   and substitutions)
+ * define substitutions from iterables
  * improve date rendering by adding strftime() formatting, locale-dependent
  * set locale by defining the \c lang bot predicate
+ * add a 'trace' command that processes input keeping the stack of evaluated
+   elements
 """
 
 from __future__ import absolute_import, division, print_function
@@ -21,6 +25,7 @@ import time
 import unicodedata
 import ConfigParser
 from functools import partial
+from itertools import count
 
 from xml.sax import parseString, SAXParseException
 from aiml import Kernel
@@ -64,12 +69,11 @@ def split_rules( lines ):
 
 def srai_sub( repl, g ):
     """Version of <srai> cleaning with uppercasing & punctuation removal"""
-    return '<srai>' + re.sub( repl, ' ', g.group(1) ).upper() + '</srai>'
+    # Split between XML markup and text; clean up text fragments
+    fragments = (f if f.startswith('<') else re.sub(repl,' ',f).upper()
+                 for f in re.split( r'(<[^>]+>)',g.group(1)) )
+    return ''.join( fragments )
 
-def srai_plain( g ):
-    """Version of <srai> cleaning with uppercasing but without punctuation 
-    removal"""
-    return '<srai>' + g.group(1).upper() + '</srai>'
 
 
 def build_aiml( lines, topic=None, re_clean=None, debug=False ):
@@ -94,10 +98,10 @@ def build_aiml( lines, topic=None, re_clean=None, debug=False ):
     """
     if debug: print( u"TEXT INPUT:  ", lines )
     aiml = u'' if topic is None else u'<topic name="{}">'.format(topic.upper())
-    fsrai = partial( srai_sub, re_clean ) if re_clean else srai_plain
+    fsrai = partial( srai_sub, re_clean ) if re_clean else None
     for rule in split_rules(lines):
         if len(rule)<2:
-            raise RuntimeException(u'invalid rule:\n' + u'\n'.join(rule) )
+            raise KrnlException( u'invalid rule:\n{}', u'\n'.join(rule) )
         # Clean the pattern 
         pattern = re.sub( re_clean, ' ', rule[0] ) if re_clean else rule[0]
         aiml += u'\n<category>\n<pattern>{}</pattern>'.format(pattern.upper())
@@ -109,7 +113,8 @@ def build_aiml( lines, topic=None, re_clean=None, debug=False ):
             rule = rule[1:]
         # Compile the template, including cleaning up <srai> elements
         tpl = u'\n'.join( rule[1:] )
-        tpl = re.sub( '<srai>(.+)</srai>', fsrai, tpl )
+        if fsrai:
+            tpl = re.sub( '(<srai>.+</srai>)', fsrai, tpl )
         aiml += u'\n<template>{}</template>\n</category>\n'.format(tpl)
     if topic is not None:
         aiml += u'\n</topic>'
@@ -139,8 +144,9 @@ class AimlBot( Kernel, object ):
         punctuation = "\"`~!@#$%^&()-=+[{]}\|;:',<.>/?"
         self._patclean = re.compile("[" + re.escape(punctuation) + "]")
         # A place to store the parsed AIML cells (TBD: save AIML to disk)
-        self.aiml = None
-
+        self._aiml = None
+        # This is for the trace command
+        self._traceStack = None
 
     def learn_buffer( self, lines, fmt='aiml', opts={} ):
         """
@@ -196,8 +202,8 @@ class AimlBot( Kernel, object ):
             self._brain.add(key,tem)
         #self._brain.dump()
         # Add the processed AIML to the aiml buffer
-        if self.aiml is not None:
-            self.aiml.append( buf )
+        if self._aiml is not None:
+            self._aiml.append( buf )
 
 
     def predicates( self, bot=False ):
@@ -242,6 +248,9 @@ class AimlBot( Kernel, object ):
         for n, kv in enumerate(items):
             #print("Sub", n+1, kv)
             self._subbers[name][kv[0]] = kv[1]
+        # We need at least one, or substitution will crash
+        if n == -1:
+            self._subbers[name]['DUMMYSUB'] = 'DUMMYSUB'
         return n+1
 
 
@@ -321,7 +330,6 @@ class AimlBot( Kernel, object ):
         if self._verboseMode: print( 'Writing main bot file:', filename )
         with open( filename, 'w' ) as f:
             cfg.write( f )
-
 
 
     def load( self, filename, options=[] ):
@@ -412,5 +420,47 @@ class AimlBot( Kernel, object ):
             return time.asctime()
         else:
             return time.strftime( elem[1]['format'] )
+
+
+    def trace( self, inputMsg ):
+        '''
+        Process an input, but keeping track of all the elements processed
+        '''
+        bck = self._processElement_Trace, self._respond_Trace
+        self._traceStack = []
+
+        try:
+            self._processElement = self._processElement_Trace
+            self._respond = self._respond_Trace
+            result = self.respond( inputMsg.encode('utf-8') ).decode('utf-8')
+            import pprint
+            n = count(1)
+            tr = [ (m[1],m[0]) if m[0].startswith('trace-') else
+                   ('{:2}: {}\n'.format(n.next(),m[0])+pprint.pformat(m[1:]),
+                    'trace-res') for m in self._traceStack ]
+            return tr + [(result,'bot')]
+        finally:
+            self._processElement, self._respond = bck
+            self._traceStack = []
+
+
+    def _respond_Trace(self, input, sessionID):
+        # Find topic & that
+        topic = self._subbers['normal'].sub( self.getPredicate("topic") )
+        outHist = self.getPredicate(self._outputHistory)
+        that = self._subbers['normal'].sub( outHist[-1] if outHist else '' )
+        # Add the inputs to the stack
+        dat = ( 'trace-in', 
+                u'INPUT=[{}] THAT=[{}] TOPIC=[{}]'.format(input,that,topic) )
+        self._traceStack.append( dat )
+        # Route to parent
+        return super(AimlBot,self)._respond( input, sessionID )
+
+
+    def _processElement_Trace(self,elem, sessionID):
+        # Add the element to the stack
+        self._traceStack.append( elem )
+        # Route to parent
+        return super(AimlBot,self)._processElement( elem, sessionID )
 
 

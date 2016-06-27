@@ -86,7 +86,7 @@ def data_msglist( msglist ):
         html += div( escape(msg).replace('\n','<br/>'), css=css or 'msg' )
         txt += msg + "\n"
     return { 'data': {'text/html' : div(html),
-                      'text/plain' : msg },
+                      'text/plain' : txt },
              'metadata' : {} }
 
 
@@ -94,11 +94,15 @@ def data_msg( msg, mtype=None ):
     """
     Return a Jupyter display_data message, in both HTML & text formats, by 
     formatting a given single message.
-      @param msg (str,list): a string, or a list of format string + args
-      @param mstype (str): the message type (used for the CSS class)
+      @param msg (str,list): a string, or a list of format string + args,
+        or an iterable of (msg,mtype)
+      @param mstype (str): the message type (used for the CSS class). If
+        it's \c __MULTI__, then \c msg will be treated as a multi-message
     """
     if isinstance(msg,KrnlException):
         return msg() # a KrnlException knows how to format itself
+    elif mtype == '_MULTI_':
+        return data_msglist( msg )
     else:
         return data_msglist( [ (msg, mtype) ] )
 
