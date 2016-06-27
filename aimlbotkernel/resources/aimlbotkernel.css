@@ -40,6 +40,25 @@ div.krn-bot div.info {
 }
 
 
+/* Trace messages */
+div.krn-bot div.trace-in { 
+    color: gray;
+    font-size: 90%;
+    font-family: DejaVu Sans Mono, Courier New, Courier, Monospace;
+    margin: 0px;
+    padding: 0px;
+    white-space: pre;
+}
+div.krn-bot div.trace-res { 
+    color: #106010;
+    border: 1px dotted #106010; 
+    font-size: 90%;
+    font-family: DejaVu Sans Mono, Courier New, Courier, Monospace;
+    margin-bottom: 3px;
+    white-space: pre-wrap;
+}
+
+
 /* Error output */
 div.krn-bot div.error {
     text-align: left;
@@ -50,4 +69,5 @@ div.krn-bot div.error {
 div.krn-bot div.error span.title { 
     color: red; font-weight: bold;
 }
+
 /* ------------------------------------------------------------------------- */

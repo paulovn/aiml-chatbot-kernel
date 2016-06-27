@@ -38,8 +38,10 @@ magics = {
     '%show session' : [ '', 'show the predicates defined in the session' ],
     '%show bot' : [ '', 'show the defined bot predicates' ],
     '%setp' : [ '[bot] <name> <value>','set a predicate, or a bot predicate'],
-    '%save' : [ '<name> [nosession]','save bot state to disk'],
-    '%load' : [ '<name>','load bot state from disk'],
+    '%save' : [ '<name> [no* ..]','save bot state to disk'],
+    '%load' : [ '<name> [no* ..]','load bot state from disk'],
+    '%subs' : [ '(<name> [reset] | default)','set substitution strings'],
+    '%log' : [ '<loglevel>','set log level'],
 }
 
 
@@ -231,7 +233,7 @@ class AimlBotKernel(Kernel):
             os.chdir( prev )
 
 
-    def learn_cell( self, lines ):
+    def learn_cell( self, lines, topic=None ):
         """
         Learn rules from a notebook cell
         """
@@ -241,8 +243,11 @@ class AimlBotKernel(Kernel):
                 break
         if i:
             lines = lines[i:]
+        # Detect format (native AIML, o simplified text)
         fmt = 'aiml' if lines[0].startswith('<') else 'text'
-        self.bot.learn_buffer( lines, fmt )
+        # Learn rules from the buffer
+        opts = { 'topic' : topic, 'clean_pattern' : True }
+        self.bot.learn_buffer( lines, fmt, opts )
 
 
     def magic( self, lines ):
@@ -269,8 +274,7 @@ class AimlBotKernel(Kernel):
             
             if len(kw) < 2:
                 raise KrnlException( 'missing filename for save operation' )
-            save_session = len(kw) < 3 or not kw[2].startswith('noses')
-            return self.bot.save(kw[1],save_session), 'ctrl'
+            return self.bot.save(kw[1],kw[2:]), 'ctrl'
 
         elif magic == "load":
             
@@ -280,6 +284,19 @@ class AimlBotKernel(Kernel):
                 return self.bot.load(kw[1]), 'ctrl'
             except IOError as e:
                 raise KrnlException( "can't load {}: {!s}", kw[1], e )
+
+        elif magic == "subs":
+
+            if len(kw) < 2:
+                raise KrnlException( 'missing subs name' )
+            reset = len(kw) == 3 and kw[2] == 'reset'
+            subs = ( [f.strip() for f in sub.split('=')]
+                     for sub in lines[1:] if '=' in sub )
+            n = self.bot.addSub( kw[1], subs, reset )
+            if isinstance(n,basestring):
+                return n, 'ctrl'
+            msg = '"{}" subs: reset. {} subs loaded' if reset else '"{}" subs: {} subs loaded'
+            return (msg, kw[1], n), 'ctrl'
 
         elif magic == "learn":
 
@@ -293,7 +310,7 @@ class AimlBotKernel(Kernel):
         elif magic == "aiml":
 
             before = self.bot.numCategories()
-            self.learn_cell( lines[1:] )
+            self.learn_cell( lines[1:], kw[1] if len(kw)>1 else None )
             msg = 'Loaded {} new patterns', self.bot.numCategories() - before
             return msg, 'ctrl'
 
@@ -311,9 +328,11 @@ class AimlBotKernel(Kernel):
 
                 # Set the predicate
                 if name != 'bot':
+                    # A session predicate
                     self.bot.setPredicate( name, value )
                     out.append(u'Setting predicate: {} = {}'.format(name,value))
                 else:
+                    # A bot predicate
                     try:
                         nam, val = value.split(None,1)
                     except ValueError:
@@ -346,7 +365,7 @@ class AimlBotKernel(Kernel):
             else:
                 raise KrnlException( 'unknown show magic: {}', kw[1] )
 
-        elif magic == "log":
+        elif magic == 'log':
 
             if len(kw) < 2:
                 raise KrnlException( 'missing log param' )
@@ -357,6 +376,11 @@ class AimlBotKernel(Kernel):
                 return ("Logging set to {}", l), 'ctrl'
             except ValueError:
                 raise KrnlException( 'unknown log level: {}', kw[1] )
+
+        elif magic == 'trace':
+
+            res = self.bot.trace( u'\n'.join(lines[1:]) )
+            return res, '_MULTI_'
 
         else:
             raise KrnlException( 'unknown magic: {}', magic )
@@ -388,7 +412,6 @@ class AimlBotKernel(Kernel):
         """
         Jupyter kernel execute message
         """
-
         try:
             return self._inner_execute( code, silent )
         except KrnlException as e:
