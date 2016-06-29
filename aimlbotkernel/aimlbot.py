@@ -322,7 +322,7 @@ class AimlBot( Kernel, object ):
             if filename.endswith('.ini'):
                 filename = filename[:-4]
             self.saveBrain( filename + '.brain' )
-            cfg.set( 'general', 'brain-filename', 
+            cfg.set( 'general', 'brain.filename', 
                      os.path.basename(filename) + '.brain' )
         
         # Save main file
@@ -383,11 +383,11 @@ class AimlBot( Kernel, object ):
                 if self._verboseMode: print('No subs defined')
 
         # Load brain
-        if 'nobot' in options:
+        if 'nobra' in options:
             if self._verboseMode: print('Skipping brain patterns')
         else:
             try:
-                filename = cfg.get('general','filename')
+                filename = cfg.get('general','brain.filename')
                 if not os.path.exists( filename ):
                     filename = os.path.join( cfgdir, filename )
                 self.loadBrain( filename )
