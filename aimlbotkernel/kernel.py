@@ -83,10 +83,11 @@ def split_magics( buffer ):
     buffer_lines = [ l for l in buffer.split('\n') if not l or l[0] !='#' ]
 
     # Remove leading empty lines
+    i = 0
     for i, line in enumerate(buffer_lines):
         if line:
             break
-    if i:
+    if i>0:
         buffer_lines = buffer_lines[i:]
 
     # Return
