@@ -1,5 +1,4 @@
-/* ------------------------------------------------------------------------- */
-/* CSS styles for the AIML Chatbot kernel */
+/* ------ CSS styles for the AIML Chatbot kernel ------ */
 
 
 /* Responses from the bot */
@@ -70,4 +69,3 @@ div.krn-bot div.error span.title {
     color: red; font-weight: bold;
 }
 
-/* ------------------------------------------------------------------------- */
