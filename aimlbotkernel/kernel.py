@@ -78,9 +78,11 @@ Use "%lsmagic" to see all the available magics.
 def split_magics( buffer ):
     """
     Split the cell by lines and decide if it contains magic or bot input
+      @return (tuple): a pair \c stripped_lines,is_magic
     """
-    # Split by lines & remove comments
-    buffer_lines = [ l for l in buffer.split('\n') if not l or l[0] !='#' ]
+    # Split by lines, strip whitespace & remove comments. Keep empty lines
+    buffer_lines = [ ls for ls in ( l.strip() for l in buffer.split('\n') )
+                     if not ls or ls[0] !='#' ]
 
     # Remove leading empty lines
     i = 0
@@ -90,7 +92,7 @@ def split_magics( buffer ):
     if i>0:
         buffer_lines = buffer_lines[i:]
 
-    # Return
+    # Decide if magic or not & return
     if not buffer_lines:
         return None, None
     elif buffer_lines[0][0] == '%':
