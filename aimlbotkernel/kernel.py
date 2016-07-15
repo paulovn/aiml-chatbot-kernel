@@ -284,7 +284,7 @@ class AimlBotKernel(Kernel):
             if len(kw) < 2:
                 raise KrnlException( 'missing filename for load operation' )
             try:
-                return self.bot.load(kw[1]), 'ctrl'
+                return self.bot.load(kw[1],kw[2:]), 'ctrl'
             except IOError as e:
                 raise KrnlException( "can't load {}: {!s}", kw[1], e )
 

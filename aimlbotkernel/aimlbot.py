@@ -24,6 +24,8 @@ import datetime
 import time
 import unicodedata
 import ConfigParser
+import zipfile
+import tempfile
 from functools import partial
 from itertools import count
 
@@ -264,7 +266,7 @@ class AimlBot( Kernel, object ):
           @param options (list): options to select what gets saved
 
         We will use a .ini config file + a serialized brain file. The first
-        one references the second.
+        one references the second. Both will be packed into a .bot file.
         """
         options = set( (v[:5] for v in options) )
         cfg = ConfigParser.SafeConfigParser()
@@ -272,6 +274,8 @@ class AimlBot( Kernel, object ):
         cfg.set( 'general', 'date', 
                  datetime.datetime.now().strftime('%Y-%m-%dT%H:%M:%S%z') )
         encode = lambda s : s.encode('utf-8')
+        if filename.endswith('.ini') or filename.endswith('.bot'):
+            filename = filename[:-4]
 
         # Session predicates
         cfg.add_section( 'session' )
@@ -315,38 +319,37 @@ class AimlBot( Kernel, object ):
                     subs.append( name )
             cfg.set( 'general', 'subs', ','.join(subs) )
 
-        # Brain patterns
+        # Save brain patterns
         if 'nobra' in options:
             if self._verboseMode: print('Skipping brain patterns')
+            brainname = None
         else:
-            if filename.endswith('.ini'):
-                filename = filename[:-4]
-            self.saveBrain( filename + '.brain' )
-            cfg.set( 'general', 'brain.filename', 
-                     os.path.basename(filename) + '.brain' )
+            brainname = filename + '.brain'
+            self.saveBrain( brainname )
+            cfg.set( 'general', 'brain.filename', os.path.basename(brainname) )
         
         # Save main file
-        filename += '.ini'
-        if self._verboseMode: print( 'Writing main bot file:', filename )
-        with open( filename, 'w' ) as f:
+        ininame = filename + '.ini'
+        if self._verboseMode: print( 'Writing main bot file:', ininame )
+        with open( ininame, 'w' ) as f:
             cfg.write( f )
 
+        # Zip those files
+        if 'rawfi' not in options:
+            zipname = filename + '.bot'
+            if self._verboseMode: print( 'Packing into:', zipname )
+            zf = zipfile.ZipFile( zipname, 'w' )
+            zf.write( ininame, os.path.basename(ininame) )
+            os.unlink( ininame )
+            if brainname:
+                zf.write( brainname, os.path.basename(brainname) )
+                os.unlink( brainname )
 
-    def load( self, filename, options=[] ):
+
+    def _load_vars( self, cfg, options ):
         """
-        Load the complete bot state (patterns, session predicates, bot
-        predicates) from disk.
+        Load all data from the .ini file
         """
-        options = set( (v[:5] for v in options) )
-
-        # Read INI configuration file
-        cfgdir = os.path.dirname( filename )
-        if not filename.endswith('.ini'):
-            filename += '.ini'
-        cfg = ConfigParser.SafeConfigParser()
-        if len(cfg.read(filename)) != 1:
-            raise KrnlException( "Can't load state from file: {}", filename )
-
         decode = lambda s : s.decode('utf-8')
 
         # Set session predicates
@@ -382,18 +385,94 @@ class AimlBot( Kernel, object ):
             except ConfigParser.NoOptionError:
                 if self._verboseMode: print('No subs defined')
 
-        # Load brain
-        if 'nobra' in options:
-            if self._verboseMode: print('Skipping brain patterns')
-        else:
-            try:
-                filename = cfg.get('general','brain.filename')
-                if not os.path.exists( filename ):
-                    filename = os.path.join( cfgdir, filename )
-                self.loadBrain( filename )
-            except ConfigParser.NoOptionError:
-                if self._verboseMode: print('No brain file defined')
+        return cfg
 
+
+    def _load_brain( self, cfg, zipf, cfgdir ):
+        """
+        Load the brain file
+        """
+        try:
+            brainfile = cfg.get('general','brain.filename')
+            if not zipf:
+                if not os.path.exists( brainfile ):
+                    brainfile = os.path.join( cfgdir, brainfile )
+                self.loadBrain( brainfile )
+            else:
+                if brainfile not in zipf.namelist():
+                    raise KrnlException('brainfile "{}" not found in zip',
+                                        brainfile)
+                # We need to extract the file
+                # (PatternMgr can't read from file-like objects)
+                tmpf = None
+                try:
+                    tmpf = zipf.extract( brainfile, tempfile.gettempdir() )
+                    self.loadBrain( tmpf )
+                finally:
+                    if tmpf:
+                        os.unlink(tmpf)
+
+        except ConfigParser.NoOptionError:
+            if self._verboseMode: print('No brain file defined')
+
+
+    def load( self, filename, options=[] ):
+        """
+        Load the complete bot state (patterns, session predicates, bot
+        predicates) from disk.
+        """
+        options = set( (v[:5] for v in options) )
+
+        # Detect file type (plain INI file or zipped file)
+        is_zip = None
+        for n in (filename,filename+'.bot',filename+'.zip'):
+            if os.path.isfile(n) and zipfile.is_zipfile(n):
+               filename = n
+               is_zip = True
+               break
+        if is_zip is None:
+            for n in (filename,filename+'.ini'):
+                if os.path.isfile(n):
+                    filename = n
+                    is_zip = False
+                    break
+        if is_zip is None:
+            raise KrnlException( "Can't find a bot state source from: {}", filename )
+
+        # Open INI file
+        if self._verboseMode: print( 'Opening:',filename )
+        if not is_zip:
+            cfgfile = open( filename, 'r' )
+            cfgdir = os.path.dirname( filename )
+        else:
+            zipf = zipfile.ZipFile( filename, 'r' )
+            cfgfile = None
+            for member in zipf.namelist():
+                if member.endswith('.ini'):
+                    cfgfile = zipf.open( member )
+                    break
+            if not cfgfile:
+                zipf.close()
+                raise KrnlException( "Can't find ini file in bot file: {}", filename )
+
+        # Read data
+        try:
+            # Read INI configuration file
+            cfg = ConfigParser.SafeConfigParser()
+            cfg.readfp(cfgfile,filename)
+            # Load variables (session, bot, subs )
+            self._load_vars( cfg, options )
+
+            # Load brain
+            if 'nobra' in options:
+                if self._verboseMode: print('Skipping brain patterns')
+            elif is_zip:
+                self._load_brain( cfg, zipf, None )
+            else:
+                self._load_brain( cfg, None, cfgdir )
+        finally:
+            if is_zip:
+                zipf.close()
 
     def setBotPredicate(self, name, value):
         '''
