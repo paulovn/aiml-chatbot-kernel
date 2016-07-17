@@ -18,6 +18,7 @@ from __future__ import absolute_import, division, print_function
 import sys
 import os.path
 import logging
+import codecs
 import re
 import locale
 import datetime
@@ -131,6 +132,11 @@ class AimlBot( Kernel, object ):
     A subclass of the standard AIML kernel, with some added functionality:
       * able to slurp a string buffer containing AIML statements
       * load/save full state to disk
+      * save parsed buffers as an AIML file
+      * return the list of session or bot predicates
+      * define string substitutions
+      * improve date processing, including making it responsible to the
+        "lang" bot predicate (which should contain a locale)
     """
 
     def __init__( self, *args, **kwargs ):
@@ -145,10 +151,11 @@ class AimlBot( Kernel, object ):
         # Same as self._brain._puncStripRE, but taking out * and _
         punctuation = "\"`~!@#$%^&()-=+[{]}\|;:',<.>/?"
         self._patclean = re.compile("[" + re.escape(punctuation) + "]")
-        # A place to store the parsed AIML cells (TBD: save AIML to disk)
+        # A place to optionally store the parsed AIML cells
         self._aiml = None
         # This is for the trace command
         self._traceStack = None
+
 
     def learn_buffer( self, lines, fmt='aiml', opts={} ):
         """
@@ -179,7 +186,7 @@ class AimlBot( Kernel, object ):
         # Parse the XML buffer with that handler
         try: 
             # Do charset encoding & add the <aiml> XML wrapping
-            xml = '<?xml version="1.0" encoding="utf-8"?>\n<aiml version="1.0">\n{}\n</aiml>'.format( buf.encode(self._enc) )
+            xml = '<?xml version="1.0" encoding="{}"?>\n<aiml version="1.0">\n{}\n</aiml>'.format( self._enc, buf.encode(self._enc) )
             parseString(xml,handler)
         except SAXParseException as e:
             # Find where the parser broke
@@ -334,7 +341,7 @@ class AimlBot( Kernel, object ):
         with open( ininame, 'w' ) as f:
             cfg.write( f )
 
-        # Zip those files
+        # Zip the two files into a .bot file
         if 'rawfi' not in options:
             zipname = filename + '.bot'
             if self._verboseMode: print( 'Packing into:', zipname )
@@ -419,7 +426,7 @@ class AimlBot( Kernel, object ):
     def load( self, filename, options=[] ):
         """
         Load the complete bot state (patterns, session predicates, bot
-        predicates) from disk.
+        predicates, substitutions) from disk.
         """
         options = set( (v[:5] for v in options) )
 
@@ -437,7 +444,7 @@ class AimlBot( Kernel, object ):
                     is_zip = False
                     break
         if is_zip is None:
-            raise KrnlException( "Can't find a bot state source from: {}", filename )
+            raise KrnlException("Can't find bot source from: {}",filename)
 
         # Open INI file
         if self._verboseMode: print( 'Opening:',filename )
@@ -473,6 +480,37 @@ class AimlBot( Kernel, object ):
         finally:
             if is_zip:
                 zipf.close()
+
+
+    def record( self, cmd, *param ):
+        """
+        Store all AIML cells that are executed, and on demand save them as 
+        an AIML file
+        """
+        # Check on/off operations
+        if cmd == 'on':
+            self._aiml = []
+            return 'Record activated'
+        elif cmd == 'off':
+            self._aiml = None
+            return 'Record deactivated'
+        elif cmd != 'save':
+            raise KrnlException('invalid subcommand for record operation')
+
+        # We are saving to a file
+        if len(param) < 1:
+            raise KrnlException('missing filename for record save operation')
+        if self._aiml is None:
+            raise KrnlException("can't save: record not active")
+
+        name = param[0] if param[0].endswith('.aiml') else param[0] + '.aiml'
+        with codecs.open( name, 'w', encoding=self._enc ) as fout:
+            fout.write( '<?xml version="1.0" encoding="{}"?>\n<aiml version="1.0">\n'.format(self._enc) )
+            for buf in self._aiml:
+                fout.write(buf)
+            fout.write( '\n</aiml>\n' )
+        return 'Record saved to "{}" ({} cells)'.format(name,len(self._aiml))
+
 
     def setBotPredicate(self, name, value):
         '''
