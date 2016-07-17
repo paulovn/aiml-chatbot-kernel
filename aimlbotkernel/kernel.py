@@ -40,6 +40,7 @@ magics = {
     '%setp' : [ '[bot] <name> <value>','set a predicate, or a bot predicate'],
     '%save' : [ '<name> [no* ..]','save bot state to disk'],
     '%load' : [ '<name> [no* ..]','load bot state from disk'],
+    '%record' : [ '(on | off | save <name>)','record & save AIML cells'],
     '%subs' : [ '(<name> [reset] | default)','set substitution strings'],
     '%log' : [ '<loglevel>','set log level'],
 }
@@ -208,7 +209,7 @@ class AimlBotKernel(Kernel):
         """
         # A direct file to load
         if name.endswith('.xml') or name.endswith('aiml'):
-            self._send( ("Learning patterns in {}", name), 'ctrl' )
+            self._send( ('Learning patterns in "{}"', name), 'ctrl' )
             self.bot.learn( name )
             return
 
@@ -217,9 +218,9 @@ class AimlBotKernel(Kernel):
             dbdir = os.path.join( os.path.dirname(aiml.__file__), name )
         elif os.path.isdir( name ):
             if not os.path.isfile( os.path.join(name,'startup.xml') ):
-                raise KrnlException( "Error: missing startup file in '{}", name)
+                raise KrnlException('Error: missing startup file in "{}"',name)
         else:
-            raise KrnlException( 'unimplemented learn for {}', name )
+            raise KrnlException( 'unimplemented learn for "{}"', name )
         
         self._send( ("Learning database: '{}'", name), status='ctrl' )
         prev = os.getcwd()
@@ -284,9 +285,15 @@ class AimlBotKernel(Kernel):
             if len(kw) < 2:
                 raise KrnlException( 'missing filename for load operation' )
             try:
-                return self.bot.load(kw[1]), 'ctrl'
+                return self.bot.load(kw[1],kw[2:]), 'ctrl'
             except IOError as e:
                 raise KrnlException( "can't load {}: {!s}", kw[1], e )
+
+        elif magic == "record":
+
+            if len(kw) < 2:
+                raise KrnlException( 'missing subcommand for record operation' )
+            return self.bot.record( *kw[1:] ), 'ctrl'
 
         elif magic == "subs":
 
@@ -409,7 +416,6 @@ class AimlBotKernel(Kernel):
 
     # -----------------------------------------------------------------
 
-
     def do_execute( self, code, silent, store_history=True,
                     user_expressions=None, allow_stdin=False ):
         """
@@ -424,7 +430,6 @@ class AimlBotKernel(Kernel):
             return self._send( KrnlException(e), silent=silent, status='error' )
             
 
-
     # -----------------------------------------------------------------
 
     def do_complete(self, code, cursor_pos ):
@@ -434,7 +439,8 @@ class AimlBotKernel(Kernel):
         tkn_low = code.lower().split(None,1)[0]
         start = 0
         if code and code[0] == '%':
-            matches = [ k for k in magics.keys() if k.startswith(tkn_low) ]
+            matches = sorted( (k for k in magics.keys() 
+                               if k.startswith(tkn_low) ) )
         LOG.debug( "token={%s} matches={%r}", tkn_low, matches )
 
         if matches:
