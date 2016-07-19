@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<aiml version="1.0">
+
+<category>
+<pattern>WHAT IS YOUR PREFERRED HOLIDAY * </pattern>
+<template><srai>HOLIDAY</srai></template>
+</category>
+
+<category>
+<pattern>HOLIDAY</pattern>
+<template>summer or winter?</template>
+</category>
+
+<category>
+<pattern>SUMMER</pattern>
+<that>SUMMER OR WINTER</that>
+<template><random>
+<li>I like to go to the beach</li>
+<li>I enjoy sailing</li>
+</random></template>
+</category>
+
+<category>
+<pattern>WINTER</pattern>
+<that>SUMMER OR WINTER</that>
+<template>I'm rather fond of cross-country skiing</template>
+</category>
+
+</aiml>

@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<aiml version="1.0">
+
+<category>
+<pattern>WHAT IS UP</pattern>
+<template>Howdy</template>
+</category>
+<category>
+<pattern>HI</pattern>
+<template>Hello</template>
+</category>
+</aiml>
