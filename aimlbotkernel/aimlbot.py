@@ -110,9 +110,10 @@ def build_aiml( lines, topic=None, re_clean=None, debug=False ):
         aiml += u'\n<category>\n<pattern>{}</pattern>'.format(pattern.upper())
         # See if the 2nd line is a pattern-side that
         if rule[1].startswith('<that>'):
-            aiml += rule[1]
-            if not rule[1].endswith('</that>'):
-                aiml += '</that>'
+            that = rule[1][6:-7] if rule[1].endswith('</that>') else rule[1][6:]
+            that = that.upper()
+            aiml += u'\n<that>{}</that>'.format( re.sub(re_clean,' ',that)
+                                                 if re_clean else that )
             rule = rule[1:]
         # Compile the template, including cleaning up <srai> elements
         tpl = u'\n'.join( rule[1:] )
@@ -543,13 +544,17 @@ class AimlBot( Kernel, object ):
         '''
         Process an input, but keeping track of all the elements processed
         '''
-        bck = self._processElement_Trace, self._respond_Trace
+        # Store safely the original methods and initiallize the stack
+        bck = self._processElement, self._respond
         self._traceStack = []
 
         try:
-            self._processElement = self._processElement_Trace
-            self._respond = self._respond_Trace
+            # Replace for the tracing methods
+            self._processElement = self._TRACE_processElement
+            self._respond = self._TRACE_respond
+            # Call the evaluation method
             result = self.respond( inputMsg.encode('utf-8') ).decode('utf-8')
+            # Format the tracing stack and return it
             import pprint
             n = count(1)
             tr = [ (m[1],m[0]) if m[0].startswith('trace-') else
@@ -557,11 +562,15 @@ class AimlBot( Kernel, object ):
                     'trace-res') for m in self._traceStack ]
             return tr + [(result,'bot')]
         finally:
+            # Restore the original methods and delete the stack
             self._processElement, self._respond = bck
-            self._traceStack = []
+            self._traceStack = None
 
 
-    def _respond_Trace(self, input, sessionID):
+    def _TRACE_respond(self, input, sessionID):
+        """
+        Override the parent method to store all input in the tracing stack
+        """
         # Find topic & that
         topic = self._subbers['normal'].sub( self.getPredicate("topic") )
         outHist = self.getPredicate(self._outputHistory)
@@ -574,7 +583,10 @@ class AimlBot( Kernel, object ):
         return super(AimlBot,self)._respond( input, sessionID )
 
 
-    def _processElement_Trace(self,elem, sessionID):
+    def _TRACE_processElement(self, elem, sessionID):
+        """
+        Override the parent method to store the element in the tracing stack
+        """
         # Add the element to the stack
         self._traceStack.append( elem )
         # Route to parent
