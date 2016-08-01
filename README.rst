@@ -11,9 +11,6 @@ Python 3.
 Installation
 ------------
 
-You will need Jupyter >= 4.0. The module is installable via `pip`, however
-until it is uploaded to PyPI it will need to be installed from the URL.
-
 The installation process requires two steps:
 
 1. Install the Python package::
