@@ -13,6 +13,7 @@ from setuptools import setup
 
 
 PKGNAME = 'aimlbotkernel'
+GITHUB_URL = 'https://github.com/paulovn/aiml-chatbot-kernel'
 
 pkg = __import__( PKGNAME ) 
 with open('README.rst') as f:
@@ -24,8 +25,8 @@ setup_args = dict(
     description='A Chatbot kernel for Jupyter based on pyAIML',
     long_description=readme,
     license='3-clause BSD license',
-    download_url = 'https://github.com/peterldowns/mypackage/tarball/v'+pkg.__version__,
-    url="https://github.com/paulovn/aiml-chatbot-kernel",
+    url=GITHUB_URL,
+    download_url = GITHUB_URL + '/tarball/v' + pkg.__version__,
     author='Paulo Villegas',
     author_email='paulo.vllgs@gmail.com',
 
