@@ -24,6 +24,7 @@ setup_args = dict(
     description='A Chatbot kernel for Jupyter based on pyAIML',
     long_description=readme,
     license='3-clause BSD license',
+    download_url = 'https://github.com/peterldowns/mypackage/tarball/'+pkg.__version__,
     url="https://github.com/paulovn/aiml-chatbot-kernel",
     author='Paulo Villegas',
     author_email='paulo.vllgs@gmail.com',
@@ -41,8 +42,10 @@ setup_args = dict(
                                  'resources/*.css' ] },
     include_package_data = True,
 
+    keywords = ['AIML', 'chatbot','Jupyter','kernel'],
     classifiers = [
         'Framework :: IPython',
+        'Programming Language :: Python :: 2 :: Only',
         'Programming Language :: Python :: 2.7',
         'License :: OSI Approved :: BSD License',
         'Development Status :: 4 - Beta',

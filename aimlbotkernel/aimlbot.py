@@ -216,16 +216,18 @@ class AimlBot( Kernel, object ):
             self._aiml.append( buf )
 
 
-    def predicates( self, bot=False ):
+    def predicates( self, bot=False, session=None ):
         """
         Return session predicates (False) or bot predicates (True), as an
         iterator over (key, value) tuples
         """
         if bot:
             return self._botPredicates.iteritems()
+        if session is None:
+            session = '_global'
         sdata = self.getSessionData()
-        return ( (k,sdata['_global'][k]) 
-                 for k in sorted(sdata['_global'].iterkeys())
+        return ( (k,sdata[session][k]) 
+                 for k in sorted(sdata[session].iterkeys())
                  if not k[0].startswith('_') )
 
 
