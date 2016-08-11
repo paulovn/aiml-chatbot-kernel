@@ -39,11 +39,13 @@ setup_args = dict(
     entry_points = { 'console_scripts': [
         'jupyter-aimlbotkernel = aimlbotkernel.__main__:main',
     ]},
-    package_data = { PKGNAME : [ 'resources/logo-*x*.png', 
-                                 'resources/*.css' ] },
-    include_package_data = True,
 
-    keywords = ['AIML', 'chatbot','Jupyter','kernel'],
+    include_package_data = False,       # otherwise package_data is not used
+    package_data = { 
+        PKGNAME : [ 'resources/logo-*x*.png', 'resources/*.css' ] 
+    },
+
+    keywords = ['AIML','chatbot','IPython','Jupyter','kernel'],
     classifiers = [
         'Framework :: IPython',
         'Programming Language :: Python :: 2 :: Only',
