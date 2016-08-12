@@ -57,8 +57,10 @@ Notebook input is of two kinds:
   some instructions, and ``%lsmagics`` to show the current list of defined 
   magics (magics have autocompletion and contextual help).
 
-The `examples`_ directory contains a few notebooks showing some of the
-provided functionality.
+The `examples` directory contains a few notebooks showing some of the
+provided functionality. They can also be seen with `online Notebook viewer`_
+(note that, as said above, they will look slightly different than in a running 
+kernel).
 
 
 AIML
@@ -76,6 +78,4 @@ in a cell.
 .. _pyAIML: https://github.com/creatorrr/pyAIML
 .. _Calysto chatbot: https://github.com/Calysto/calysto_chatbot
 .. _AIML: http://www.alicebot.org/aiml.html
-.. _examples: examples/
-
-
+.. _online Notebook viewer: http://nbviewer.jupyter.org/github/paulovn/aiml-chatbot-kernel/blob/master/examples/
