@@ -18,19 +18,23 @@ from __future__ import absolute_import, division, print_function
 import sys
 import os.path
 import logging
-import codecs
+import io
 import re
 import locale
 import datetime
 import time
 import unicodedata
-import ConfigParser
 import zipfile
 import tempfile
 from functools import partial
 from itertools import count
-
 from xml.sax import parseString, SAXParseException
+try:
+    import ConfigParser
+except ImportError:
+    import configparser as ConfigParser
+
+from aiml.constants import VERSION as pyaiml_version
 from aiml import Kernel
 from aiml.AimlParser import AimlHandler
 from aiml.WordSub import WordSub
@@ -38,7 +42,13 @@ from aiml.WordSub import WordSub
 from .utils import KrnlException
 
 
-LOG = logging.getLogger( __name__ )
+PY3 = sys.version_info[0] == 3
+if PY3:
+    iteritems = lambda x : x.items()
+else:
+    iteritems = lambda x : x.iteritems()
+
+
 
 
 
@@ -186,8 +196,8 @@ class AimlBot( Kernel, object ):
 
         # Parse the XML buffer with that handler
         try: 
-            # Do charset encoding & add the <aiml> XML wrapping
-            xml = '<?xml version="1.0" encoding="{}"?>\n<aiml version="1.0">\n{}\n</aiml>'.format( self._enc, buf.encode(self._enc) )
+            # Add the <aiml> XML wrapping & do charset encoding
+            xml = u'<?xml version="1.0" encoding="{}"?>\n<aiml version="1.0">\n{}\n</aiml>'.format(self._enc, buf).encode(self._enc)
             parseString(xml,handler)
         except SAXParseException as e:
             # Find where the parser broke
@@ -208,7 +218,7 @@ class AimlBot( Kernel, object ):
             raise KrnlException( *msg )
 
         # Store the pattern/template pairs in the PatternMgr
-        for key,tem in handler.categories.items():
+        for key,tem in iteritems(handler.categories):
             self._brain.add(key,tem)
         #self._brain.dump()
         # Add the processed AIML to the aiml buffer
@@ -222,12 +232,12 @@ class AimlBot( Kernel, object ):
         iterator over (key, value) tuples
         """
         if bot:
-            return self._botPredicates.iteritems()
+            return iteritems(self._botPredicates)
         if session is None:
             session = '_global'
         sdata = self.getSessionData()
         return ( (k,sdata[session][k]) 
-                 for k in sorted(sdata[session].iterkeys())
+                 for k in sorted(sdata[session].keys())
                  if not k[0].startswith('_') )
 
 
@@ -283,9 +293,11 @@ class AimlBot( Kernel, object ):
         cfg.add_section( 'general' )
         cfg.set( 'general', 'date', 
                  datetime.datetime.now().strftime('%Y-%m-%dT%H:%M:%S%z') )
-        encode = lambda s : s.encode('utf-8')
         if filename.endswith('.ini') or filename.endswith('.bot'):
             filename = filename[:-4]
+        # Python 3 encodes when writing, but in Python 2 we must supply
+        # already encoded strings (since ConfigParser doesn't support unicode)
+        encode = (lambda s : s) if PY3 else (lambda s : s.encode('utf-8'))
 
         # Session predicates
         cfg.add_section( 'session' )
@@ -314,14 +326,14 @@ class AimlBot( Kernel, object ):
             if self._verboseMode: print('Skipping subs')
         else:
             subs = []
-            for name,s in self._subbers.iteritems():
+            for name,s in iteritems(self._subbers):
                 # Create the section
                 sname = 'sub/' + name
                 cfg.add_section( sname )
                 if self._verboseMode: 
                     print('Saving subbers for {} ... '.format(name),end='')
                 # Add all subs (uppercase versions will be collapsed)
-                for kv in s.iteritems():
+                for kv in iteritems(s):
                     cfg.set(sname,*map(encode,kv) )
                 num = len(cfg.options(sname))
                 if self._verboseMode: print(num,'subs')
@@ -341,8 +353,12 @@ class AimlBot( Kernel, object ):
         # Save main file
         ininame = filename + '.ini'
         if self._verboseMode: print( 'Writing main bot file:', ininame )
-        with open( ininame, 'w' ) as f:
-            cfg.write( f )
+        if PY3:
+            with io.open( ininame, 'wt', encoding='utf-8') as f:
+                cfg.write( f )
+        else:
+            with open( ininame, 'wt' ) as f:
+                cfg.write( f )
 
         # Zip the two files into a .bot file
         if 'rawfi' not in options:
@@ -360,16 +376,14 @@ class AimlBot( Kernel, object ):
         """
         Load all data from the .ini file
         """
-        decode = lambda s : s.decode('utf-8')
-
         # Set session predicates
         if 'noses' in options:
             if self._verboseMode: print('Skipping session predicates')
         else:
             if self._verboseMode: print('Loading session predicates... ',end='')
             num = -1
-            for num, kv in enumerate(cfg.items('session')):
-                self.setPredicate( *map(decode,kv) )
+            for num, kv in enumerate( cfg.items('session') ):
+                self.setPredicate( *kv )
             if self._verboseMode: print(num+1,'predicates')
 
         # Set bot predicates
@@ -378,8 +392,8 @@ class AimlBot( Kernel, object ):
         else:
             if self._verboseMode: print( 'Loading bot predicates... ',end='' )
             num = -1
-            for num, kv in enumerate(cfg.items('bot')):
-                self.setBotPredicate( *map(decode,kv) )
+            for num, kv in enumerate( cfg.items('bot') ):
+                self.setBotPredicate( *kv )
             if self._verboseMode: print(num+1,'predicates')
 
         # Load subs
@@ -452,7 +466,7 @@ class AimlBot( Kernel, object ):
         # Open INI file
         if self._verboseMode: print( 'Opening:',filename )
         if not is_zip:
-            cfgfile = open( filename, 'r' )
+            cfgfile = io.open( filename, 'rb' )
             cfgdir = os.path.dirname( filename )
         else:
             zipf = zipfile.ZipFile( filename, 'r' )
@@ -469,7 +483,7 @@ class AimlBot( Kernel, object ):
         try:
             # Read INI configuration file
             cfg = ConfigParser.SafeConfigParser()
-            cfg.readfp(cfgfile,filename)
+            cfg.readfp( io.TextIOWrapper(cfgfile,encoding='utf-8'), filename )
             # Load variables (session, bot, subs )
             self._load_vars( cfg, options )
 
@@ -507,11 +521,11 @@ class AimlBot( Kernel, object ):
             raise KrnlException("can't save: record not active")
 
         name = param[0] if param[0].endswith('.aiml') else param[0] + '.aiml'
-        with codecs.open( name, 'w', encoding=self._enc ) as fout:
-            fout.write( '<?xml version="1.0" encoding="{}"?>\n<aiml version="1.0">\n'.format(self._enc) )
+        with io.open( name, 'wt', encoding=self._enc ) as fout:
+            fout.write( u'<?xml version="1.0" encoding="{}"?>\n<aiml version="1.0">\n'.format(self._enc) )
             for buf in self._aiml:
                 fout.write(buf)
-            fout.write( '\n</aiml>\n' )
+            fout.write( u'\n</aiml>\n' )
         return 'Record saved to "{}" ({} cells)'.format(name,len(self._aiml))
 
 
@@ -560,7 +574,7 @@ class AimlBot( Kernel, object ):
             import pprint
             n = count(1)
             tr = [ (m[1],m[0]) if m[0].startswith('trace-') else
-                   ('{:2}: {}\n'.format(n.next(),m[0])+pprint.pformat(m[1:]),
+                   ('{:2}: {}\n'.format(next(n),m[0])+pprint.pformat(m[1:]),
                     'trace-res') for m in self._traceStack ]
             return tr + [(result,'bot')]
         finally:

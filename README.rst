@@ -2,10 +2,10 @@ AIML Chatbot kernel
 ===================
 
 This is a Jupyter kernel that deploys a chatbot, implemented using the 
-`pyAIML`_ library. The idea was taken from the `Calysto chatbot`_ kernel.
+`python-aiml`_ package. The idea was taken from the `Calysto chatbot`_ kernel.
 
-It has been tested with Python 2.7 and Jupyter 4.1. It will not work with
-Python 3.
+It has been tested with Jupyter 4.x. The code works with either Python 2.7 
+or Python 3 (tested with Python 3.4)
 
 
 Installation
@@ -19,11 +19,16 @@ The installation process requires two steps:
 
 2. Install the kernel into Jupyter::
 
-     jupyter aimlbotkernel install [--user]
+     jupyter aimlbotkernel install [--user] [--logdir <dir>]
 
 The ``--user`` option will install the kernel in the current user's personal
 config, while the generic command will install it as a global kernel (but
 needs write permissions in the system directories).
+
+The ``--logdir`` specifies the default place into which the logfile will be
+written (unless overriden at runtime by the ``LOGDIR`` environment variable).
+If no directory is specified, the (platform-specific) default temporal 
+directory will be used.
 
 Note that the Jupyter kernel installation also installs some custom CSS; its 
 purpose is to improve the layout of the kernel results as they are presented 
@@ -68,14 +73,14 @@ AIML
 
 `AIML`_ is an XML-based specification to design conversational agents. Its 
 most famous application is ALICE, a chatbot (the DB for the free version of 
-ALICE is included in this kernel, as it is part of pyAIML)
+ALICE is included in this kernel, as it is included in python-aiml)
 
 The chatbot can load an AIML database (which is basically a bunch of XML
 files). It can also define AIML rules on the fly, by using the ``%aiml`` magic
 in a cell.
 
 
-.. _pyAIML: https://github.com/creatorrr/pyAIML
+.. _python-aiml: https://github.com/paulovn/python-aiml
 .. _Calysto chatbot: https://github.com/Calysto/calysto_chatbot
 .. _AIML: http://www.alicebot.org/aiml.html
 .. _online Notebook viewer: http://nbviewer.jupyter.org/github/paulovn/aiml-chatbot-kernel/blob/master/examples/

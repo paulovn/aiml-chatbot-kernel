@@ -13,11 +13,10 @@ from ipykernel.kernelbase import Kernel
 from traitlets import List
 
 from . import __version__
-from .aimlbot import AimlBot, build_aiml
+from .aimlbot import AimlBot, build_aiml, pyaiml_version
 from .utils import KrnlException, data_msg
+from .setlogging import set_logging, logfilename
 
-# The logger we will use
-LOG = logging.getLogger( __name__ )
 
 # Load commands for the standard DBs
 LOAD = { 'alice' : 'alice',
@@ -138,7 +137,7 @@ class AimlBotKernel(Kernel):
     implementation_version = __version__
     banner = "AIML Chatbot - a chatbot for Jupyter"
     language = 'xml'
-    language_version = '0.1'
+    language_version = '0.2'
     language_info = { 'name': 'Chatbot', 
                       'mimetype': 'text/xml'}
 
@@ -159,13 +158,21 @@ class AimlBotKernel(Kernel):
 
 
     def __init__(self, *args, **kwargs):
+        """
+        Initialize the object
+        """
+        # Define logging status before calling parent constructor
+        set_logging( level='WARN' )
+        self._klog = logging.getLogger( __name__ )
+        self._klog.warn("Starting kernel %s <python-aiml %s> <Python %s>",
+                        __version__, pyaiml_version, sys.version)
         # Start base kernel
         super(AimlBotKernel, self).__init__(*args, **kwargs)
         # Redirect stdout, so that we send AIML messages to the notebook
         try:
             sys.stdout.write = self._send_stdout
         except:
-            LOG.warn( "can't redirect stdout" )
+            self._klog.warn( "can't redirect stdout" )
         # Start the AIML kernel
         self.bot = AimlBot()
 
@@ -179,7 +186,7 @@ class AimlBotKernel(Kernel):
         """
         # Data to send back
         if data is not None and not silent:
-            LOG.info( 'output: %s', data )
+            self._klog.info( 'output: %s', data )
             # Format the data
             data = data_msg( data, mtype=status )
             # Send the data to the frontend
@@ -199,7 +206,7 @@ class AimlBotKernel(Kernel):
         Send to frontend the data received as stdout
         """
         stream_content = { 'name': 'stdout', 'text': txt, 'metadata': {} }
-        LOG.debug('stdout: %s' % txt)
+        self._klog.debug('stdout: %s' % txt)
         self.send_response(self.iopub_socket, 'stream', stream_content)
 
 
@@ -215,7 +222,7 @@ class AimlBotKernel(Kernel):
 
         # A directory containing: AIML files + a startup file
         if name in ('alice','standard'):
-            dbdir = os.path.join( os.path.dirname(aiml.__file__), name )
+            dbdir = os.path.join( os.path.dirname(aiml.__file__), 'botdata', name )
         elif os.path.isdir( name ):
             if not os.path.isfile( os.path.join(name,'startup.xml') ):
                 raise KrnlException('Error: missing startup file in "{}"',name)
@@ -225,12 +232,12 @@ class AimlBotKernel(Kernel):
         self._send( ("Learning database: '{}'", name), status='ctrl' )
         prev = os.getcwd()
         try:
-            LOG.info( ' find db in: %s',dbdir)
+            self._klog.info( ' find db in: %s',dbdir)
             os.chdir( dbdir )
-            LOG.info( ' learn startup.xml' )
+            self._klog.info( ' learn startup.xml' )
             self.bot.learn( 'startup.xml' )
             if LOAD.get(name ):
-                LOG.info( ' load '+ LOAD[name] )
+                self._klog.info( ' load '+ LOAD[name] )
                 self._send( "Loading patterns", 'ctrl' )
                 self.bot.respond( 'load ' + LOAD[name] )
         finally:
@@ -383,7 +390,7 @@ class AimlBotKernel(Kernel):
                 l = kw[1].upper()
                 parent_logger = logging.getLogger( __name__.rsplit('.',1)[0] )
                 parent_logger.setLevel( l )
-                return ("Logging set to {}", l), 'ctrl'
+                return ("Logging set to {}\nLogfile: {}", l, logfilename()), 'ctrl'
             except ValueError:
                 raise KrnlException( 'unknown log level: {}', kw[1] )
 
@@ -402,7 +409,7 @@ class AimlBotKernel(Kernel):
         Execute the cell code, send the appropriate message to the frontend
         and return the result to be provided to the backend
         """
-        LOG.info( ' input: %s', code )
+        self._klog.info( ' input: %s', code )
         content, is_magic = split_magics( code )
 
         if is_magic is True:
@@ -425,6 +432,9 @@ class AimlBotKernel(Kernel):
             return self._inner_execute( code, silent )
         except KrnlException as e:
             return self._send( e, silent=silent, status='error' )
+        except IOError as e:
+            return self._send( KrnlException(str(e)), 
+                               silent=silent, status='error' )
         except Exception as e:
             #raise
             return self._send( KrnlException(e), silent=silent, status='error' )
@@ -441,7 +451,7 @@ class AimlBotKernel(Kernel):
         if code and code[0] == '%':
             matches = sorted( (k for k in magics.keys() 
                                if k.startswith(tkn_low) ) )
-        LOG.debug( "token={%s} matches={%r}", tkn_low, matches )
+        self._klog.debug( "token={%s} matches={%r}", tkn_low, matches )
 
         if matches:
             return  {'status': 'ok',
@@ -456,7 +466,7 @@ class AimlBotKernel(Kernel):
         """
         Method called on help requests
         """
-        LOG.info( "{%s}", code[cursor_pos:cursor_pos+10] )
+        self._klog.info( "{%s}", code[cursor_pos:cursor_pos+10] )
 
         # Find the token for which help is requested
         token, start = token_at_cursor( code, cursor_pos )
