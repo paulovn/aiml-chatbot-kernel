@@ -11,13 +11,19 @@ import os
 import os.path
 import json
 import pkgutil
+import io
 
 from jupyter_client.kernelspecapp  import InstallKernelSpec, RemoveKernelSpec
+from traitlets import Unicode
 
 from IPython.utils.path import ensure_dir_exists
 from IPython.utils.tempdir import TemporaryDirectory
 
 from . import __version__, KERNEL_NAME, DISPLAY_NAME
+
+PY3 = sys.version_info[0] == 3
+if PY3:
+    unicode = str
 
 MODULEDIR = os.path.dirname(__file__)
 PKGNAME = os.path.basename( MODULEDIR )
@@ -37,7 +43,7 @@ kernel_json = {
 
 def css_frame_prefix( name ):
     '''Define the comment prefix used in custom css to frame kernel CSS'''
-    return '/* @{{KERNEL}} {} '.format(name)
+    return u'/* @{{KERNEL}} {} '.format(name)
 
 
 def copyresource( resource, filename, destdir ):
@@ -46,8 +52,8 @@ def copyresource( resource, filename, destdir ):
     """
     data = pkgutil.get_data(resource, os.path.join('resources',filename) )
     #log.info( "Installing %s", os.path.join(destdir,filename) )
-    with open( os.path.join(destdir,filename), 'wb' ) as fp:
-        fp.write(data)
+    with io.open(os.path.join(destdir,filename), 'wb' ) as fp:
+        fp.write( data )
 
 
 def install_kernel_resources( destdir, resource=PKGNAME, files=None ):
@@ -65,45 +71,55 @@ def install_kernel_resources( destdir, resource=PKGNAME, files=None ):
 
 def install_custom_css( destdir, cssfile, resource=PKGNAME ):
     """
-    Install the kernel CSS file and include it within custom.css
+    Add the kernel CSS to custom.css
     """
     ensure_dir_exists( destdir )
+    custom = os.path.join( destdir, 'custom.css' )
     prefix = css_frame_prefix(resource)
 
-    # Check if custom.css already includes it. If so, we can return
-    custom = os.path.join( destdir, 'custom.css' )
+    # Check if custom.css already includes it. If so, let's remove it first
+    exists = False
     if os.path.exists( custom ):
-        with open(custom) as f:
+        with io.open(custom) as f:
             for line in f:
                 if line.find( prefix ) >= 0:
-                    return
+                    exists = True
+                    break
+    if exists:
+        remove_custom_css( destdir, resource )
 
-    # Add the CSS at the beginning of custom.css
+    # Fetch the CSS file
     cssfile += '.css'
     data = pkgutil.get_data( resource, os.path.join('resources',cssfile) )
-    with open(custom + '-new', 'w') as fout:
-        fout.write('{}START ======================== */\n'.format(prefix))
-        fout.write( data )
-        fout.write('{}END ======================== */\n'.format(prefix))
+    # get_data() delivers encoded data, str (Python2) or bytes (Python3)
+
+    # Add the CSS at the beginning of custom.css
+    # io.open uses unicode strings (unicode in Python2, str in Python3)
+    with io.open(custom + '-new', 'wt', encoding='utf-8') as fout:
+        fout.write( u'{}START ======================== */\n'.format(prefix))
+        fout.write( data.decode('utf-8') )
+        fout.write( u'{}END ======================== */\n'.format(prefix))
         if os.path.exists( custom ):
-            with open( custom ) as fin:
+            with io.open( custom, 'rt', encoding='utf-8' ) as fin:
                 for line in fin:
-                    fout.write( line )
+                    fout.write( unicode(line) )
     os.rename( custom+'-new',custom)
 
 
 def remove_custom_css(destdir, resource=PKGNAME ):
     """
-    Remove the kernel CSS file and eliminat its include in custom.css
+    Remove the kernel CSS from custom.css
     """
 
     # Remove the inclusion in the main CSS
+    if not os.path.isdir( destdir ):
+        return False
     custom = os.path.join( destdir, 'custom.css' )
     copy = True
     found = False
     prefix = css_frame_prefix(resource)
-    with open(custom + '-new', 'w') as fout:
-        with open(custom) as fin:
+    with io.open(custom + '-new', 'wt') as fout:
+        with io.open(custom) as fin:
             for line in fin:
                 if line.startswith( prefix + 'START' ):
                     copy = False
@@ -118,7 +134,7 @@ def remove_custom_css(destdir, resource=PKGNAME ):
     else:
         os.unlink( custom+'-new')
 
-    return True
+    return found
 
 
 
@@ -135,6 +151,12 @@ class AimlBotInstall( InstallKernelSpec ):
     description = '''Install the AIML Chatbot Kernel
     Either as a system kernel or for a concrete user'''
 
+    logdir = Unicode( os.environ.get('LOGDIR', ''),
+        config=True,
+        help="""Default directory to use for the logfile."""
+    )
+    aliases =  { 'logdir' : 'AimlBotInstall.logdir' } 
+
     def parse_command_line(self, argv):
         """
         Skip parent method and go for its ancestor
@@ -144,7 +166,7 @@ class AimlBotInstall( InstallKernelSpec ):
 
 
     def start(self):
-	if self.user and self.prefix:
+        if self.user and self.prefix:
             self.exit("Can't specify both user and prefix. Please choose one or\
  the other.")
 
@@ -152,6 +174,8 @@ class AimlBotInstall( InstallKernelSpec ):
         with TemporaryDirectory() as td:
             os.chmod(td, 0o755) # Starts off as 700, not user readable
             # Add kernel spec
+            if len(self.logdir):
+                kernel_json['env'] = { 'LOGDIR_DEFAULT' : self.logdir }
             with open(os.path.join(td, 'kernel.json'), 'w') as f:
                 json.dump(kernel_json, f, sort_keys=True)
             # Add resources
@@ -208,14 +232,13 @@ class AimlBotRemove( RemoveKernelSpec ):
         super(AimlBotRemove, self).start()
 
         # Remove the installed custom CSS
+        # Try the ~/.jupyter/custom dir & the system custom dir
         self.log.info('Removing CSS')
-        # Use the ~/.jupyter/custom dir
         import jupyter_core
-        destd = os.path.join( jupyter_core.paths.jupyter_config_dir(),'custom')
-        if remove_custom_css( destd, PKGNAME ):
-            self.log.info('Removed from %s', destd)
-        # Use the system custom dir
         import notebook
-        destd = os.path.join( notebook.DEFAULT_STATIC_FILES_PATH, 'custom' )
-        if remove_custom_css( destd, PKGNAME ):
-            self.log.info('Removed from %s', destd)
+        cssd = ( os.path.join(jupyter_core.paths.jupyter_config_dir(),'custom'),
+                 os.path.join(notebook.DEFAULT_STATIC_FILES_PATH,'custom') )
+        for destd in cssd:
+            if remove_custom_css( destd, PKGNAME ):
+                self.log.info('Removed CSS from %s', destd)
+

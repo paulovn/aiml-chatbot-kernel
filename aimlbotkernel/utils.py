@@ -6,10 +6,19 @@ from __future__ import absolute_import, division, print_function
 import logging
 
 # A logger for this file
-LOG = logging.getLogger( __name__ )
+LOG = None
 
 # Default wrapping class for an output message
 HTML_DIV_CLASS = 'krn-bot'
+
+
+# ----------------------------------------------------------------
+
+def getLogger():
+    global LOG
+    if LOG is None:
+        LOG = logging.getLogger( __name__ )
+    return LOG
 
 
 # ----------------------------------------------------------------
@@ -64,22 +73,22 @@ def div( txt, *args, **kwargs ):
     if args:
         txt = txt.format( *args )
     css = kwargs.get('css',HTML_DIV_CLASS)
-    out = u'<div class="{}">{}</div>'.format( css, txt )
-    return u'<div class="{}">{}</div>'.format( css, txt )
+    return u'<div class="{}">{!s}</div>'.format( css, txt )
 
 
 def data_msglist( msglist ):
     """
     Return a Jupyter display_data message, in both HTML & text formats, by 
     joining together all passed messages.
+
       @param msglist (iterable): an iterable containing a list of tuples
         (message, css_style)
 
-    Each message is either a text string, or a list. In that case it is
+    Each message is either a text string, or a list. In the latter case it is
     assumed to be a format string + parameters.
     """
     txt = html = u''
-    LOG.debug( "msglist: %r", msglist )
+    getLogger().debug( "msglist: %r", msglist )
     for msg, css in msglist:
         if is_collection(msg):
             msg = msg[0].format(*msg[1:])
@@ -120,7 +129,7 @@ class KrnlException( Exception ):
             msg = repr( msg )
         elif len(msg):
             msg = msg.format(*args)
-        LOG.warn( "KrnlException: %s", msg, exc_info=1 )
+        getLogger().warn( "KrnlException: %s", msg, exc_info=1 )
         super(KrnlException,self).__init__(msg)
 
     def __call__(self):

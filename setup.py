@@ -33,8 +33,8 @@ setup_args = dict(
     packages=[ PKGNAME ],
     install_requires=[ "setuptools",
                        "ipykernel >= 4.0", 
-                       "jupyter_client >= 4.0",
-                       "aiml" ],
+                       "jupyter-client >= 4.0",
+                       "python-aiml >= 0.9.0" ],
 
     entry_points = { 'console_scripts': [
         'jupyter-aimlbotkernel = aimlbotkernel.__main__:main',
