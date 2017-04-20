@@ -63,5 +63,10 @@ docs/_build/
 # PyBuilder
 target/
 
-#Ipython Notebook
+# Ipython Notebook
 .ipynb_checkpoints
+
+# Other
+logo-?.png
+TODO.txt
+OLD

@@ -48,6 +48,7 @@ setup_args = dict(
     keywords = ['AIML','chatbot','IPython','Jupyter','kernel'],
     classifiers = [
         'Framework :: IPython',
+        'Framework :: Jupyter',
         'Programming Language :: Python :: 2 :: Only',
         'Programming Language :: Python :: 2.7',
         'License :: OSI Approved :: BSD License',
