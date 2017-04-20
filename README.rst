@@ -28,7 +28,8 @@ needs write permissions in the system directories).
 The ``--logdir`` specifies the default place into which the logfile will be
 written (unless overriden at runtime by the ``LOGDIR`` environment variable).
 If no directory is specified, the (platform-specific) default temporal 
-directory will be used.
+directory will be used. The loggging filename is ``aimlbotkernel-<uid>.log``
+where *<uid>* is the user id of the user running the notebook server. 
 
 Note that the Jupyter kernel installation also installs some custom CSS; its 
 purpose is to improve the layout of the kernel results as they are presented 
