@@ -28,7 +28,7 @@ needs write permissions in the system directories).
 The ``--logdir`` specifies the default place into which the logfile will be
 written (unless overriden at runtime by the ``LOGDIR`` environment variable).
 If no directory is specified, the (platform-specific) default temporal 
-directory will be used. The loggging filename is ``aimlbotkernel-<uid>.log``
+directory will be used. The logging filename is ``aimlbotkernel-<uid>.log``
 where *<uid>* is the user id of the user running the notebook server. 
 
 Note that the Jupyter kernel installation also installs some custom CSS; its 
@@ -74,7 +74,7 @@ AIML
 
 `AIML`_ is an XML-based specification to design conversational agents. Its 
 most famous application is ALICE, a chatbot (the DB for the free version of 
-ALICE is included in this kernel, as it is included in python-aiml)
+ALICE is included in this kernel, as it is included in `python-aiml`_)
 
 The chatbot can load an AIML database (which is basically a bunch of XML
 files). It can also define AIML rules on the fly, by using the ``%aiml`` magic
